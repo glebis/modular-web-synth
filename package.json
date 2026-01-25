@@ -6,7 +6,7 @@
   "main": "server.js",
   "scripts": {
     "dev": "tsx watch server.ts",
-    "build": "tsc",
+    "build": "echo 'Static site - no build needed'",
     "start": "node dist/server.js"
   },
   "dependencies": {

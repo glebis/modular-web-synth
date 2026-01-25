@@ -1,13 +1,5 @@
 {
-  "buildCommand": null,
-  "devCommand": null,
-  "installCommand": null,
-  "framework": null,
-  "outputDirectory": ".",
-  "rewrites": [
-    {
-      "source": "/",
-      "destination": "/synthesizer.html"
-    }
-  ]
+  "github": {
+    "silent": true
+  }
 }
