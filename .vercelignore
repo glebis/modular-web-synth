@@ -1,7 +1,8 @@
 server.ts
-server.js
 dist/
-node_modules/
 *.ts
 tsconfig.json
 generated/
+package.json
+package-lock.json
+node_modules/
