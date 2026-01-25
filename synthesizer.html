@@ -1,0 +1,2154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Claude Code Synthesizer</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/interactjs@1.10.19/dist/interact.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,200..1000;1,9..40,200..1000&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+      --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
+
+      /* Hardware synth color palette */
+      --rack-bg: #0f0f0f;
+      --panel-bg: #1a1a1a;
+      --panel-border: #2a2a2a;
+      --panel-highlight: #3a3a3a;
+      --text-primary: #e8e8e8;
+      --text-secondary: #999999;
+      --text-value: #d4af37;
+      --accent-brass: #b8860b;
+      --accent-copper: #c87533;
+      --accent-warm: #d47d3f;
+      --control-bg: #252525;
+      --control-border: #404040;
+      --shadow-deep: rgba(0, 0, 0, 0.6);
+      --shadow-soft: rgba(0, 0, 0, 0.3);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    /* Reduced motion support */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+
+    body {
+      font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--rack-bg);
+      color: var(--text-primary);
+      padding: 20px;
+      min-height: 100vh;
+      position: relative;
+      overflow-x: hidden;
+      overflow-y: auto;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    /* Subtle noise texture for analog feel */
+    body::before {
+      content: '';
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.03'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 1;
+      opacity: 0.5;
+    }
+
+    /* Boot sequence overlay */
+    #boot-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: #0a0a0a;
+      z-index: 10000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 20px;
+      font-size: 14px;
+      opacity: 1;
+      pointer-events: none;
+    }
+
+    #boot-overlay.hidden {
+      opacity: 0;
+      transition: opacity 0.3s var(--ease-out-expo);
+    }
+
+    .boot-line {
+      opacity: 0;
+      transform: translateX(-20px);
+      color: #00ff00;
+      text-shadow: 0 0 10px rgba(0, 255, 0, 0.5);
+    }
+
+    .container {
+      max-width: 1800px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 1fr 380px;
+      gap: 16px;
+      align-items: start;
+      position: relative;
+      z-index: 2;
+    }
+
+    @media (max-width: 1400px) {
+      .container {
+        grid-template-columns: 1fr 340px;
+      }
+    }
+
+    /* Rack-mounted panel styling */
+    .synth-panel, .chat-panel {
+      background: linear-gradient(135deg, var(--panel-bg) 0%, #1c1c1c 100%);
+      border: 1px solid var(--panel-border);
+      border-radius: 3px;
+      padding: 20px;
+      box-shadow:
+        0 4px 12px var(--shadow-deep),
+        inset 0 1px 0 var(--panel-highlight),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.5);
+      position: relative;
+      overflow-y: auto;
+      max-height: calc(100vh - 60px);
+    }
+
+    /* Rack mounting screws */
+    .synth-panel::before,
+    .synth-panel::after,
+    .chat-panel::before,
+    .chat-panel::after {
+      content: '';
+      position: absolute;
+      width: 8px;
+      height: 8px;
+      background: radial-gradient(circle at 30% 30%, #4a4a4a, #1a1a1a);
+      border-radius: 50%;
+      border: 1px solid #0a0a0a;
+      box-shadow: inset 0 1px 0 #5a5a5a;
+    }
+
+    .synth-panel::before, .chat-panel::before {
+      top: 12px;
+      left: 12px;
+    }
+
+    .synth-panel::after, .chat-panel::after {
+      top: 12px;
+      right: 12px;
+    }
+
+    .chat-panel {
+      display: flex;
+      flex-direction: column;
+      max-height: 90vh;
+    }
+
+    h1 {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 16px;
+      color: var(--text-primary);
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      border-bottom: 1px solid var(--panel-border);
+      padding-bottom: 8px;
+    }
+
+    h2 {
+      font-size: 11px;
+      font-weight: 600;
+      margin-bottom: 10px;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+    }
+
+    /* Hardware-style keyboard */
+    .keyboard {
+      display: flex;
+      gap: 2px;
+      margin: 16px 0;
+      justify-content: center;
+      padding: 12px;
+      background: linear-gradient(180deg, #0a0a0a 0%, #1a1a1a 100%);
+      border-radius: 3px;
+      border: 1px solid var(--panel-border);
+    }
+
+    .key {
+      width: 44px;
+      height: 170px;
+      background: linear-gradient(180deg, #f5f5f5 0%, #e0e0e0 100%);
+      border: 1px solid #999;
+      cursor: pointer;
+      position: relative;
+      transition: all 0.05s var(--ease-out-quint);
+      transform: translateY(0);
+      box-shadow:
+        0 4px 0 #888,
+        0 5px 8px rgba(0, 0, 0, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.5);
+      border-radius: 0 0 3px 3px;
+    }
+
+    .key:hover {
+      background: linear-gradient(180deg, #fff 0%, #e8e8e8 100%);
+      box-shadow:
+        0 4px 0 #888,
+        0 5px 12px rgba(212, 175, 55, 0.2),
+        inset 0 1px 0 rgba(255, 255, 255, 0.6);
+    }
+
+    .key:active,
+    .key.active {
+      background: linear-gradient(180deg, #d4af37 0%, #b8930b 100%);
+      transform: translateY(3px);
+      box-shadow:
+        0 1px 0 #888,
+        0 2px 4px rgba(0, 0, 0, 0.4),
+        inset 0 2px 8px rgba(0, 0, 0, 0.3),
+        0 0 12px rgba(212, 175, 55, 0.4);
+    }
+
+    .key.black {
+      width: 28px;
+      height: 105px;
+      background: linear-gradient(180deg, #2a2a2a 0%, #0a0a0a 100%);
+      border: 1px solid #000;
+      position: absolute;
+      z-index: 1;
+      margin-left: -14px;
+      box-shadow:
+        0 3px 0 #000,
+        0 4px 6px rgba(0, 0, 0, 0.5),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    }
+
+    .key.black:hover {
+      background: linear-gradient(180deg, #3a3a3a 0%, #1a1a1a 100%);
+      box-shadow:
+        0 3px 0 #000,
+        0 4px 8px rgba(212, 175, 55, 0.2),
+        inset 0 1px 0 rgba(255, 255, 255, 0.15);
+    }
+
+    .key.black:active,
+    .key.black.active {
+      background: linear-gradient(180deg, #b8930b 0%, #6b5606 100%);
+      transform: translateY(2px);
+      box-shadow:
+        0 1px 0 #000,
+        0 2px 4px rgba(0, 0, 0, 0.6),
+        inset 0 2px 6px rgba(0, 0, 0, 0.4),
+        0 0 8px rgba(212, 175, 55, 0.3);
+    }
+
+    .key-label {
+      position: absolute;
+      bottom: 8px;
+      width: 100%;
+      text-align: center;
+      font-size: 9px;
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 500;
+      color: #666;
+      letter-spacing: 0.5px;
+    }
+
+    .key.black .key-label {
+      color: #666;
+    }
+
+    /* Control sections - hardware panel style */
+    .control-section {
+      background: linear-gradient(135deg, var(--control-bg) 0%, #2a2a2a 100%);
+      border: 1px solid var(--control-border);
+      border-radius: 2px;
+      padding: 14px;
+      margin: 12px 0;
+      position: relative;
+      transition: opacity 0.2s, border-color 0.2s, transform 0.3s var(--ease-out-quint);
+      opacity: 1;
+      transform: translateY(0);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.05),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.3),
+        0 2px 4px var(--shadow-soft);
+      cursor: move;
+    }
+
+    .control-section:hover {
+      border-color: var(--accent-brass);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.08),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.3),
+        0 4px 8px var(--shadow-soft);
+    }
+
+    /* Module entrance animation - subtle slide-in */
+    .control-section.entering {
+      animation: moduleEnter 0.4s var(--ease-out-quint) forwards;
+    }
+
+    @keyframes moduleEnter {
+      0% {
+        opacity: 0;
+        transform: translateY(12px);
+      }
+      100% {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    /* Dragging state */
+    .control-section.dragging {
+      opacity: 0.8;
+      box-shadow: 0 8px 24px var(--shadow-deep);
+      transform: scale(1.02);
+      z-index: 1000;
+      cursor: grabbing;
+    }
+
+    .control-section.bypassed {
+      opacity: 0.5;
+      border-color: #666;
+    }
+
+    .module-controls {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      display: none;
+      gap: 4px;
+      z-index: 10;
+    }
+
+    .control-section:hover .module-controls {
+      display: flex;
+    }
+
+    /* Disable dragging on module control buttons */
+    .module-controls * {
+      cursor: pointer !important;
+    }
+
+    .module-btn {
+      background: linear-gradient(180deg, #3a3a3a 0%, #1a1a1a 100%);
+      color: var(--text-primary);
+      border: 1px solid var(--control-border);
+      padding: 5px 10px;
+      cursor: pointer;
+      font-size: 9px;
+      font-weight: 600;
+      border-radius: 2px;
+      font-family: 'DM Sans', sans-serif;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      transition: all 0.15s var(--ease-out-quint);
+      transform: translateY(0);
+      box-shadow:
+        0 1px 0 rgba(0, 0, 0, 0.5),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    }
+
+    .module-btn:hover {
+      background: linear-gradient(180deg, #4a4a4a 0%, #2a2a2a 100%);
+      border-color: var(--accent-brass);
+      color: var(--accent-brass);
+      box-shadow:
+        0 1px 0 rgba(0, 0, 0, 0.5),
+        inset 0 1px 0 rgba(255, 255, 255, 0.15),
+        0 0 8px rgba(184, 134, 11, 0.2);
+    }
+
+    .module-btn:active {
+      transform: translateY(1px);
+      box-shadow:
+        0 0 0 rgba(0, 0, 0, 0.5),
+        inset 0 2px 4px rgba(0, 0, 0, 0.3);
+    }
+
+    .module-btn.delete {
+      color: #cc6666;
+      border-color: #aa4444;
+    }
+
+    .module-btn.delete:hover {
+      background: linear-gradient(180deg, #aa4444 0%, #882222 100%);
+      color: var(--text-primary);
+      border-color: #cc6666;
+    }
+
+    /* Module browser - hardware catalog style */
+    .module-item {
+      background: linear-gradient(135deg, #1a1a1a 0%, #252525 100%);
+      border: 1px solid var(--panel-border);
+      border-radius: 2px;
+      padding: 8px 10px;
+      margin: 6px 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+    }
+
+    .module-item:hover {
+      border-color: var(--accent-brass);
+      background: linear-gradient(135deg, #252525 0%, #2a2a2a 100%);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.05),
+        0 2px 6px var(--shadow-soft);
+    }
+
+    .module-item.loaded {
+      border-color: var(--accent-copper);
+      background: linear-gradient(135deg, #2a1a0a 0%, #3a2510 100%);
+      box-shadow:
+        inset 0 1px 0 rgba(212, 175, 55, 0.1),
+        0 0 8px rgba(200, 117, 51, 0.2);
+    }
+
+    .module-info {
+      flex: 1;
+    }
+
+    .module-name {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 3px;
+      letter-spacing: 0.3px;
+    }
+
+    .module-item.loaded .module-name {
+      color: var(--text-value);
+    }
+
+    .module-desc {
+      font-size: 9px;
+      color: var(--text-secondary);
+      line-height: 1.3;
+    }
+
+    .module-load-btn {
+      background: linear-gradient(180deg, #2a2a2a 0%, #1a1a1a 100%);
+      color: var(--text-primary);
+      border: 1px solid var(--control-border);
+      padding: 5px 12px;
+      cursor: pointer;
+      font-size: 9px;
+      font-weight: 600;
+      border-radius: 2px;
+      font-family: 'DM Sans', sans-serif;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      transition: all 0.15s;
+      box-shadow: 0 1px 0 rgba(0, 0, 0, 0.5);
+    }
+
+    .module-load-btn:hover {
+      background: linear-gradient(180deg, var(--accent-brass) 0%, #8a6608 100%);
+      color: var(--panel-bg);
+      border-color: var(--accent-brass);
+      transform: translateY(-1px);
+      box-shadow: 0 2px 0 rgba(0, 0, 0, 0.5);
+    }
+
+    .module-load-btn:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+      border-color: #333;
+      color: #555;
+    }
+
+    .module-load-btn:disabled:hover {
+      background: linear-gradient(180deg, #2a2a2a 0%, #1a1a1a 100%);
+      color: #555;
+      transform: translateY(0);
+    }
+
+    .control-group {
+      margin: 10px 0;
+    }
+
+    .control-label {
+      display: block;
+      font-size: 10px;
+      font-weight: 600;
+      margin-bottom: 6px;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+    }
+
+    .control-value {
+      float: right;
+      color: var(--text-value);
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 500;
+      font-size: 10px;
+    }
+
+    /* Hardware-style slider */
+    input[type="range"] {
+      width: 100%;
+      height: 6px;
+      background: linear-gradient(180deg, #0a0a0a 0%, #1a1a1a 100%);
+      outline: none;
+      -webkit-appearance: none;
+      transition: background 0.2s;
+      cursor: pointer;
+      border-radius: 3px;
+      border: 1px solid #000;
+      box-shadow:
+        inset 0 2px 4px rgba(0, 0, 0, 0.6),
+        inset 0 -1px 0 rgba(255, 255, 255, 0.05);
+    }
+
+    input[type="range"]:hover {
+      box-shadow:
+        inset 0 2px 4px rgba(0, 0, 0, 0.6),
+        inset 0 -1px 0 rgba(255, 255, 255, 0.08);
+    }
+
+    /* Webkit slider thumb - brass knob style */
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 20px;
+      height: 20px;
+      background: radial-gradient(circle at 35% 35%, #d4af37, #8a6608);
+      cursor: pointer;
+      border-radius: 50%;
+      border: 2px solid #6b5606;
+      transition: all 0.15s var(--ease-out-quint);
+      box-shadow:
+        0 2px 4px rgba(0, 0, 0, 0.5),
+        inset 0 1px 0 rgba(255, 255, 200, 0.3),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.4);
+      position: relative;
+    }
+
+    input[type="range"]::-webkit-slider-thumb:hover {
+      background: radial-gradient(circle at 35% 35%, #e0c050, #9a7018);
+      box-shadow:
+        0 3px 6px rgba(0, 0, 0, 0.6),
+        inset 0 1px 0 rgba(255, 255, 200, 0.4),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.4),
+        0 0 8px rgba(212, 175, 55, 0.3);
+    }
+
+    input[type="range"]:active::-webkit-slider-thumb {
+      background: radial-gradient(circle at 35% 35%, #c0a030, #7a5608);
+      box-shadow:
+        0 1px 2px rgba(0, 0, 0, 0.6),
+        inset 0 2px 4px rgba(0, 0, 0, 0.3);
+    }
+
+    /* Firefox slider thumb */
+    input[type="range"]::-moz-range-thumb {
+      width: 20px;
+      height: 20px;
+      background: radial-gradient(circle at 35% 35%, #d4af37, #8a6608);
+      cursor: pointer;
+      border-radius: 50%;
+      border: 2px solid #6b5606;
+      transition: all 0.15s var(--ease-out-quint);
+      box-shadow:
+        0 2px 4px rgba(0, 0, 0, 0.5),
+        inset 0 1px 0 rgba(255, 255, 200, 0.3),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.4);
+    }
+
+    input[type="range"]::-moz-range-thumb:hover {
+      background: radial-gradient(circle at 35% 35%, #e0c050, #9a7018);
+      box-shadow:
+        0 3px 6px rgba(0, 0, 0, 0.6),
+        inset 0 1px 0 rgba(255, 255, 200, 0.4),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.4),
+        0 0 8px rgba(212, 175, 55, 0.3);
+    }
+
+    input[type="range"]:active::-moz-range-thumb {
+      background: radial-gradient(circle at 35% 35%, #c0a030, #7a5608);
+      box-shadow:
+        0 1px 2px rgba(0, 0, 0, 0.6),
+        inset 0 2px 4px rgba(0, 0, 0, 0.3);
+    }
+
+    select {
+      width: 100%;
+      background: linear-gradient(180deg, #1a1a1a 0%, #0a0a0a 100%);
+      color: var(--text-primary);
+      border: 1px solid var(--control-border);
+      padding: 8px 10px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 11px;
+      font-weight: 500;
+      border-radius: 2px;
+      cursor: pointer;
+      box-shadow:
+        inset 0 1px 3px rgba(0, 0, 0, 0.4),
+        0 1px 0 rgba(255, 255, 255, 0.05);
+    }
+
+    select:hover {
+      border-color: var(--accent-brass);
+      background: linear-gradient(180deg, #2a2a2a 0%, #1a1a1a 100%);
+    }
+
+    /* Visualizer - oscilloscope style */
+    .visualizer {
+      width: 100%;
+      height: 100px;
+      background: radial-gradient(ellipse at center, #0a0a0a 0%, #000 100%);
+      border: 1px solid var(--panel-border);
+      border-radius: 2px;
+      margin: 12px 0;
+      box-shadow:
+        inset 0 2px 8px rgba(0, 0, 0, 0.8),
+        inset 0 -1px 0 rgba(255, 255, 255, 0.02);
+    }
+
+    /* Compact visualizer in module grids */
+    #custom-controls .visualizer,
+    #midi-controls .visualizer,
+    #custom-controls canvas,
+    #midi-controls canvas {
+      height: 60px;
+      min-height: 60px;
+    }
+
+    /* Chat Interface - terminal log style */
+    .chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      margin-bottom: 12px;
+      padding: 10px;
+      background: radial-gradient(ellipse at top left, #0a0a0a 0%, #000 100%);
+      border: 1px solid var(--panel-border);
+      border-radius: 2px;
+      max-height: 60vh;
+      box-shadow:
+        inset 0 2px 8px rgba(0, 0, 0, 0.6),
+        inset 0 -1px 0 rgba(255, 255, 255, 0.02);
+    }
+
+    .message {
+      margin: 8px 0;
+      padding: 8px 10px;
+      border-radius: 2px;
+      line-height: 1.4;
+      font-size: 12px;
+      border-left: 2px solid transparent;
+    }
+
+    .message.user {
+      background: linear-gradient(135deg, #1a1a1a 0%, #252525 100%);
+      border-left-color: var(--accent-brass);
+      color: var(--text-primary);
+    }
+
+    .message.assistant {
+      background: linear-gradient(135deg, #1a1515 0%, #251a1a 100%);
+      border-left-color: var(--accent-copper);
+      color: var(--text-primary);
+    }
+
+    .message.system {
+      background: linear-gradient(135deg, #151a1a 0%, #1a2020 100%);
+      border-left-color: #5a8a8a;
+      font-size: 11px;
+      color: #8ab8b8;
+    }
+
+    .suggestion-chip {
+      display: inline-block;
+      background: linear-gradient(180deg, #2a2a2a 0%, #1a1a1a 100%);
+      color: var(--text-value);
+      border: 1px solid var(--control-border);
+      padding: 4px 10px;
+      margin: 3px 2px;
+      border-radius: 2px;
+      cursor: pointer;
+      font-size: 10px;
+      font-weight: 500;
+      transition: all 0.15s var(--ease-out-quint);
+      text-transform: none;
+      box-shadow: 0 1px 0 rgba(0, 0, 0, 0.5);
+    }
+
+    .suggestion-chip:hover {
+      background: linear-gradient(180deg, var(--accent-brass) 0%, #8a6608 100%);
+      color: var(--panel-bg);
+      border-color: var(--accent-brass);
+      transform: translateY(-1px);
+      box-shadow: 0 2px 0 rgba(0, 0, 0, 0.5);
+    }
+
+    .suggestion-chip:active {
+      transform: translateY(0);
+      box-shadow: 0 0 0 rgba(0, 0, 0, 0.5);
+    }
+
+    .regenerate-btn {
+      background: linear-gradient(180deg, #2a2a2a 0%, #1a1a1a 100%);
+      color: var(--accent-copper);
+      border: 1px solid var(--control-border);
+      padding: 6px 12px;
+      margin-top: 6px;
+      margin-right: 4px;
+      border-radius: 2px;
+      cursor: pointer;
+      font-size: 10px;
+      font-weight: 600;
+      font-family: 'DM Sans', sans-serif;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      transition: all 0.15s var(--ease-out-quint);
+      box-shadow: 0 1px 0 rgba(0, 0, 0, 0.5);
+    }
+
+    .regenerate-btn:hover {
+      background: linear-gradient(180deg, var(--accent-copper) 0%, #9a5828 100%);
+      color: var(--panel-bg);
+      border-color: var(--accent-copper);
+      transform: translateY(-1px);
+      box-shadow: 0 2px 0 rgba(0, 0, 0, 0.5);
+    }
+
+    .regenerate-btn:active {
+      transform: translateY(0);
+      box-shadow: 0 0 0 rgba(0, 0, 0, 0.5);
+    }
+
+    .chat-input-container {
+      display: flex;
+      gap: 8px;
+    }
+
+    .chat-input {
+      flex: 1;
+      background: linear-gradient(180deg, #0a0a0a 0%, #1a1a1a 100%);
+      border: 1px solid var(--control-border);
+      color: var(--text-primary);
+      padding: 10px 12px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 12px;
+      border-radius: 2px;
+      box-shadow:
+        inset 0 2px 4px rgba(0, 0, 0, 0.6),
+        0 1px 0 rgba(255, 255, 255, 0.05);
+      transition: border-color 0.2s;
+    }
+
+    .chat-input:focus {
+      outline: none;
+      border-color: var(--accent-brass);
+      box-shadow:
+        inset 0 2px 4px rgba(0, 0, 0, 0.6),
+        0 0 0 2px rgba(184, 134, 11, 0.2);
+    }
+
+    .chat-send {
+      background: linear-gradient(180deg, var(--accent-copper) 0%, #9a5828 100%);
+      color: var(--text-primary);
+      border: 1px solid var(--accent-copper);
+      padding: 10px 24px;
+      cursor: pointer;
+      font-family: 'DM Sans', sans-serif;
+      font-weight: 600;
+      font-size: 11px;
+      border-radius: 2px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      transition: all 0.15s var(--ease-out-quint);
+      box-shadow: 0 2px 0 rgba(0, 0, 0, 0.5);
+    }
+
+    .chat-send:hover {
+      background: linear-gradient(180deg, #da8f49 0%, #aa6838 100%);
+      transform: translateY(-1px);
+      box-shadow: 0 3px 0 rgba(0, 0, 0, 0.5);
+    }
+
+    .chat-send:active {
+      background: linear-gradient(180deg, #aa6838 0%, #7a4818 100%);
+      transform: translateY(1px);
+      box-shadow: 0 0 0 rgba(0, 0, 0, 0.5);
+    }
+
+    .chat-send:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .info-box {
+      background: linear-gradient(135deg, #0a0a0a 0%, #151515 100%);
+      border: 1px solid var(--panel-border);
+      border-left: 3px solid #5a8a8a;
+      border-radius: 2px;
+      padding: 12px;
+      margin-bottom: 16px;
+      font-size: 11px;
+      color: #8ab8b8;
+      line-height: 1.6;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
+    }
+
+    /* Section dividers - hardware panel style */
+    .claude-section {
+      border-top: 1px solid var(--panel-border);
+      padding-top: 16px;
+      margin-top: 16px;
+    }
+
+    .claude-section-label {
+      font-size: 9px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 8px;
+    }
+
+    /* Module grid layout - 3 columns with min/max sizing */
+    #custom-controls,
+    #midi-controls {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 12px;
+      grid-template-rows: auto;
+    }
+
+    #custom-controls .claude-section-label,
+    #midi-controls .claude-section-label {
+      grid-column: 1 / -1;
+    }
+
+    /* Force exactly 3 columns on larger screens */
+    @media (min-width: 900px) {
+      #custom-controls,
+      #midi-controls {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+    }
+
+    /* 2 columns on medium screens */
+    @media (max-width: 899px) and (min-width: 600px) {
+      #custom-controls,
+      #midi-controls {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    /* 1 column on small screens */
+    @media (max-width: 599px) {
+      #custom-controls,
+      #midi-controls {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Compact module sizing */
+    #custom-controls .control-section,
+    #midi-controls .control-section {
+      margin: 0;
+      min-height: 0;
+      padding: 10px;
+      overflow: hidden;
+    }
+
+    #custom-controls h2,
+    #midi-controls h2 {
+      font-size: 10px;
+      margin-bottom: 6px;
+    }
+
+    #custom-controls .control-group,
+    #midi-controls .control-group {
+      margin: 5px 0;
+    }
+
+    #custom-controls .control-label,
+    #midi-controls .control-label {
+      font-size: 9px;
+      margin-bottom: 4px;
+    }
+
+    #custom-controls .control-value,
+    #midi-controls .control-value {
+      font-size: 9px;
+    }
+
+    /* Compact input elements */
+    #custom-controls input[type="range"],
+    #midi-controls input[type="range"] {
+      height: 5px;
+    }
+
+    #custom-controls select,
+    #midi-controls select {
+      padding: 6px 8px;
+      font-size: 10px;
+    }
+
+    #custom-controls button,
+    #midi-controls button {
+      font-size: 9px;
+      padding: 4px 8px;
+    }
+
+    /* Compact step sequencer grid */
+    #midi-controls #seq-grid {
+      gap: 2px !important;
+      margin-top: 6px !important;
+    }
+
+    #midi-controls #seq-grid button {
+      padding: 6px 3px !important;
+      font-size: 8px !important;
+      min-width: 0 !important;
+    }
+
+    /* MIDI specific styles */
+    .transpose-btn,
+    .seq-step-btn,
+    .seq-transport-btn {
+      background: #0a0a0a;
+      color: #00ff00;
+      border: 1px solid #00ff00;
+      padding: 5px 10px;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 11px;
+      border-radius: 4px;
+    }
+
+    .transpose-btn:hover,
+    .seq-step-btn:hover,
+    .seq-transport-btn:hover {
+      background: #00ff00;
+      color: #0a0a0a;
+    }
+
+    .transpose-btn:active,
+    .seq-step-btn:active,
+    .seq-transport-btn:active {
+      background: #00aa00;
+    }
+  </style>
+</head>
+<body>
+  <!-- Boot sequence overlay -->
+  <div id="boot-overlay">
+    <div class="boot-line" data-boot-line="0">INITIALIZING CLAUDE SYNTH v1.0...</div>
+    <div class="boot-line" data-boot-line="1">LOADING AUDIO CONTEXT...</div>
+    <div class="boot-line" data-boot-line="2">MOUNTING WEB AUDIO NODES...</div>
+    <div class="boot-line" data-boot-line="3">ESTABLISHING MIDI CORE...</div>
+    <div class="boot-line" data-boot-line="4">READY.</div>
+  </div>
+
+  <div class="container">
+    <!-- SYNTH PANEL -->
+    <div class="synth-panel">
+      <h1>🎹 Claude Code Synthesizer</h1>
+
+      <!-- Visualizer -->
+      <canvas class="visualizer" id="visualizer"></canvas>
+
+      <!-- Oscillator Controls -->
+      <div class="control-section">
+        <h2>Oscillator</h2>
+        <div class="control-group">
+          <label class="control-label">
+            Waveform
+          </label>
+          <select id="waveform">
+            <option value="sine">Sine</option>
+            <option value="square">Square</option>
+            <option value="sawtooth">Sawtooth</option>
+            <option value="triangle">Triangle</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <label class="control-label">
+            Detune <span class="control-value" id="detune-value">0</span>
+          </label>
+          <input type="range" id="detune" min="-100" max="100" value="0">
+        </div>
+      </div>
+
+      <!-- Envelope Controls -->
+      <div class="control-section">
+        <h2>Envelope</h2>
+        <div class="control-group">
+          <label class="control-label">
+            Attack <span class="control-value" id="attack-value">0.1s</span>
+          </label>
+          <input type="range" id="attack" min="0" max="2" step="0.01" value="0.1">
+        </div>
+        <div class="control-group">
+          <label class="control-label">
+            Release <span class="control-value" id="release-value">0.3s</span>
+          </label>
+          <input type="range" id="release" min="0" max="2" step="0.01" value="0.3">
+        </div>
+      </div>
+
+      <!-- Volume Control -->
+      <div class="control-section">
+        <h2>Output</h2>
+        <div class="control-group">
+          <label class="control-label">
+            Volume <span class="control-value" id="volume-value">50%</span>
+          </label>
+          <input type="range" id="volume" min="0" max="100" value="50">
+        </div>
+      </div>
+
+      <!-- === MODULE BROWSER === -->
+      <div class="claude-section">
+        <div class="claude-section-label">📦 Available Modules</div>
+        <div id="module-browser" style="padding: 10px;">
+          <!-- Modules will be listed here -->
+        </div>
+      </div>
+
+      <!-- === PRESET SYSTEM === -->
+      <div class="claude-section">
+        <div class="claude-section-label">💾 Global Presets</div>
+        <div style="padding: 10px; background: #0a0a0a; border: 1px solid #00ff00; border-radius: 2px;">
+          <!-- Save preset -->
+          <div style="margin-bottom: 12px;">
+            <label style="display: block; font-size: 10px; color: #00ff00; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.8px;">Save Current Setup</label>
+            <div style="display: flex; gap: 6px;">
+              <input
+                type="text"
+                id="preset-name-input"
+                placeholder="Preset name..."
+                style="flex: 1; background: #1a1a1a; border: 1px solid #00ff00; color: #00ff00; padding: 6px 8px; font-family: 'JetBrains Mono', monospace; font-size: 11px; border-radius: 2px;"
+              >
+              <button
+                id="preset-save-btn"
+                style="background: #0a0a0a; color: #00ff00; border: 1px solid #00ff00; padding: 6px 12px; cursor: pointer; font-size: 10px; font-weight: 600; border-radius: 2px; text-transform: uppercase; transition: all 0.15s;"
+                onmouseover="this.style.background='#00ff00'; this.style.color='#0a0a0a';"
+                onmouseout="this.style.background='#0a0a0a'; this.style.color='#00ff00';"
+              >Save</button>
+            </div>
+          </div>
+
+          <!-- Preset list -->
+          <div>
+            <label style="display: block; font-size: 10px; color: #00ff00; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.8px;">Saved Presets</label>
+            <div id="preset-list" style="max-height: 200px; overflow-y: auto;">
+              <div style="font-size: 11px; color: #666; font-style: italic;">No presets saved</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- === CLAUDE CODE SECTION: ADD NEW CONTROLS HERE === -->
+      <div class="claude-section" id="custom-controls">
+        <div class="claude-section-label">⚡ Loaded Modules</div>
+
+        <!-- Low-Pass Filter -->
+        <div class="control-section">
+          <h2>Low-Pass Filter</h2>
+          <div class="control-group">
+            <label class="control-label">
+              Cutoff <span class="control-value" id="filter-cutoff-value">5000 Hz</span>
+            </label>
+            <input type="range" id="filter-cutoff" min="20" max="20000" value="5000">
+          </div>
+          <div class="control-group">
+            <label class="control-label">
+              Resonance <span class="control-value" id="filter-resonance-value">0</span>
+            </label>
+            <input type="range" id="filter-resonance" min="0" max="30" step="0.1" value="0">
+          </div>
+        </div>
+      </div>
+
+      <!-- === MIDI CONTROLS SECTION === -->
+      <div class="claude-section" id="midi-controls">
+        <div class="claude-section-label">🎹 MIDI Effects Chain</div>
+        <!-- MIDI modules will be inserted here -->
+      </div>
+
+      <!-- Keyboard -->
+      <h2>Keyboard</h2>
+      <div class="keyboard" id="keyboard"></div>
+    </div>
+
+    <!-- CHAT PANEL -->
+    <div class="chat-panel">
+      <h1>💬 Claude Interface</h1>
+
+      <div class="info-box">
+        <strong>Agent SDK Mode:</strong><br>
+        1. Start server: <code>npm run dev</code><br>
+        2. Type feature request below<br>
+        3. Click "Send Request"<br>
+        4. Claude generates and loads module automatically
+      </div>
+
+      <!-- Module List -->
+      <div class="control-section" style="margin-bottom: 15px;">
+        <h2>Loaded Modules</h2>
+        <div id="module-list" style="font-size: 11px; color: #00aaff;">
+          No modules loaded
+        </div>
+      </div>
+
+      <div class="chat-messages" id="chat-messages">
+        <!-- Messages will be added here via JavaScript -->
+      </div>
+
+      <div style="margin-bottom: 6px; display: flex; gap: 4px; flex-wrap: wrap;">
+        <button class="regenerate-btn" id="suggest-modules-btn">
+          💡 Suggest Modules
+        </button>
+        <button class="regenerate-btn" id="suggest-effects-btn">
+          ✨ Creative Effects
+        </button>
+        <button class="regenerate-btn" id="suggest-modulation-btn">
+          🌀 Modulation
+        </button>
+      </div>
+
+      <div class="chat-input-container">
+        <input
+          type="text"
+          class="chat-input"
+          id="chat-input"
+          placeholder="Request a feature..."
+          autocomplete="off"
+        >
+        <button class="chat-send" id="chat-send">Send Request</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Import Synthesizer Core -->
+  <script type="module" src="./synthesizer-core.js"></script>
+
+  <!-- Import MIDI Core -->
+  <script type="module" src="./midi-core.js"></script>
+
+  <script type="module">
+    // === INITIALIZE SYNTH CORE ===
+    const synth = window.SynthCore.init();
+    const { audioContext, analyser, params, noteFrequencies, keyMap } = synth;
+
+    // Initialize MIDI Core
+    const midi = window.MIDICore.init(synth);
+
+    // Load previously loaded modules from localStorage
+    synth.moduleLoader.loadFromLocalStorage();
+
+    // Load default MIDI modules
+    async function loadDefaultMIDIModules() {
+      try {
+        // Load visualizer first (shows all MIDI activity)
+        await midi.loadModule((await import('./midi-modules/midi-visualizer.js')).default);
+
+        // Load sequencer (generates notes)
+        await midi.loadModule((await import('./midi-modules/midi-sequencer.js')).default);
+
+        // Load transpose (always useful)
+        await midi.loadModule((await import('./midi-modules/midi-transpose.js')).default);
+
+        // Load velocity curve
+        await midi.loadModule((await import('./midi-modules/midi-velocity.js')).default);
+
+        // Load chord generator
+        await midi.loadModule((await import('./midi-modules/midi-chord.js')).default);
+
+        // Load quantizer
+        await midi.loadModule((await import('./midi-modules/midi-quantizer.js')).default);
+
+        // Load MIDI delay
+        await midi.loadModule((await import('./midi-modules/midi-delay.js')).default);
+
+        // Load Euclidean Rhythm (rhythm filter) - starts bypassed
+        const euclideanId = await midi.loadModule((await import('./midi-modules/midi-euclidean.js')).default);
+        midi.toggleBypass(euclideanId); // Start bypassed to avoid filtering notes
+
+        // Load Binary Spiral sequencer - starts bypassed
+        const spiralId = await midi.loadModule((await import('./midi-modules/midi-binary-spiral.js')).default);
+        midi.toggleBypass(spiralId); // Start bypassed
+
+        console.log('✓ Default MIDI modules loaded (Euclidean & Binary Spiral start bypassed)');
+      } catch (error) {
+        console.error('Failed to load default MIDI modules:', error);
+      }
+    }
+
+    loadDefaultMIDIModules();
+
+    // === GLOBAL HELPER FUNCTIONS ===
+
+    // Load MIDI module from console
+    window.loadMIDIModule = async (path) => {
+      try {
+        const module = (await import(path)).default;
+        await window.MIDICore.instance.loadModule(module);
+        console.log(`✓ Loaded MIDI module: ${module.name}`);
+        return module;
+      } catch (error) {
+        console.error(`✗ Failed to load MIDI module from ${path}:`, error);
+        throw error;
+      }
+    };
+
+    console.log('💡 Tip: Load MIDI modules from console using:');
+    console.log('  await loadMIDIModule("./midi-modules/midi-euclidean.js")');
+    console.log('  await loadMIDIModule("./midi-modules/midi-binary-spiral.js")');
+
+    // === UI CONTROLS ===
+    document.getElementById('waveform').addEventListener('change', (e) => {
+      params.waveform = e.target.value;
+    });
+
+    document.getElementById('detune').addEventListener('input', (e) => {
+      params.detune = parseFloat(e.target.value);
+      document.getElementById('detune-value').textContent = e.target.value;
+    });
+
+    document.getElementById('attack').addEventListener('input', (e) => {
+      params.attack = parseFloat(e.target.value);
+      document.getElementById('attack-value').textContent = e.target.value + 's';
+    });
+
+    document.getElementById('release').addEventListener('input', (e) => {
+      params.release = parseFloat(e.target.value);
+      document.getElementById('release-value').textContent = e.target.value + 's';
+    });
+
+    document.getElementById('volume').addEventListener('input', (e) => {
+      const vol = parseInt(e.target.value) / 100;
+      synth.updateVolume(vol);
+      document.getElementById('volume-value').textContent = e.target.value + '%';
+    });
+
+    // Filter controls
+    document.getElementById('filter-cutoff').addEventListener('input', (e) => {
+      const cutoff = parseFloat(e.target.value);
+      synth.updateFilter(cutoff, params.filterResonance);
+      document.getElementById('filter-cutoff-value').textContent = Math.round(cutoff) + ' Hz';
+    });
+
+    document.getElementById('filter-resonance').addEventListener('input', (e) => {
+      const resonance = parseFloat(e.target.value);
+      synth.updateFilter(params.filterCutoff, resonance);
+      document.getElementById('filter-resonance-value').textContent = resonance.toFixed(1);
+    });
+
+    // === KEYBOARD RENDERING ===
+    const keyboard = document.getElementById('keyboard');
+    const whiteNotes = ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4', 'C5'];
+    const blackNotes = ['C#4', 'D#4', null, 'F#4', 'G#4', 'A#4', null];
+
+    whiteNotes.forEach((note, i) => {
+      const key = document.createElement('div');
+      key.className = 'key';
+      key.dataset.note = note;
+
+      const label = document.createElement('div');
+      label.className = 'key-label';
+      label.textContent = note;
+      key.appendChild(label);
+
+      key.addEventListener('mousedown', () => {
+        const midiNote = noteToMIDI[note];
+        if (midiNote) {
+          midi.triggerNote(midiNote, 100);
+        }
+        key.classList.add('active');
+
+        // Trigger particle animation
+        if (window.SynthAnimations) {
+          window.SynthAnimations.playKeyPress(key);
+        }
+      });
+
+      key.addEventListener('mouseup', () => {
+        const midiNote = noteToMIDI[note];
+        if (midiNote) {
+          midi.releaseNote(midiNote);
+        }
+        key.classList.remove('active');
+      });
+
+      key.addEventListener('mouseleave', () => {
+        const midiNote = noteToMIDI[note];
+        if (midiNote) {
+          midi.releaseNote(midiNote);
+        }
+        key.classList.remove('active');
+      });
+
+      keyboard.appendChild(key);
+
+      // Add black key after this white key (if exists)
+      if (blackNotes[i]) {
+        const blackKey = document.createElement('div');
+        blackKey.className = 'key black';
+        blackKey.dataset.note = blackNotes[i];
+
+        const blackLabel = document.createElement('div');
+        blackLabel.className = 'key-label';
+        blackLabel.textContent = blackNotes[i];
+        blackKey.appendChild(blackLabel);
+
+        blackKey.addEventListener('mousedown', (e) => {
+          e.stopPropagation();
+          const midiNote = noteToMIDI[blackNotes[i]];
+          if (midiNote) {
+            midi.triggerNote(midiNote, 100);
+          }
+          blackKey.classList.add('active');
+        });
+
+        blackKey.addEventListener('mouseup', () => {
+          const midiNote = noteToMIDI[blackNotes[i]];
+          if (midiNote) {
+            midi.releaseNote(midiNote);
+          }
+          blackKey.classList.remove('active');
+        });
+
+        blackKey.addEventListener('mouseleave', () => {
+          const midiNote = noteToMIDI[blackNotes[i]];
+          if (midiNote) {
+            midi.releaseNote(midiNote);
+          }
+          blackKey.classList.remove('active');
+        });
+
+        keyboard.appendChild(blackKey);
+      }
+    });
+
+    // === COMPUTER KEYBOARD INPUT ===
+    // Map note names to MIDI numbers
+    const noteToMIDI = {
+      'C4': 60, 'C#4': 61, 'D4': 62, 'D#4': 63,
+      'E4': 64, 'F4': 65, 'F#4': 66, 'G4': 67,
+      'G#4': 68, 'A4': 69, 'A#4': 70, 'B4': 71,
+      'C5': 72
+    };
+
+    window.addEventListener('keydown', (e) => {
+      const note = keyMap[e.key.toLowerCase()];
+      if (note && !e.repeat) {
+        // Trigger through MIDI chain instead of direct playNote
+        const midiNote = noteToMIDI[note];
+        if (midiNote) {
+          midi.triggerNote(midiNote, 100);
+        }
+        const keyElement = document.querySelector(`[data-note="${note}"]`);
+        if (keyElement) {
+          keyElement.classList.add('active');
+
+          // Trigger particle animation
+          if (window.SynthAnimations) {
+            window.SynthAnimations.playKeyPress(keyElement);
+          }
+        }
+      }
+    });
+
+    window.addEventListener('keyup', (e) => {
+      const note = keyMap[e.key.toLowerCase()];
+      if (note) {
+        const midiNote = noteToMIDI[note];
+        if (midiNote) {
+          midi.releaseNote(midiNote);
+        }
+        const keyElement = document.querySelector(`[data-note="${note}"]`);
+        if (keyElement) keyElement.classList.remove('active');
+      }
+    });
+
+    // === VISUALIZER ===
+    const canvas = document.getElementById('visualizer');
+    const ctx = canvas.getContext('2d');
+    canvas.width = canvas.offsetWidth;
+    canvas.height = canvas.offsetHeight;
+
+    const bufferLength = analyser.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
+
+    function drawVisualizer() {
+      requestAnimationFrame(drawVisualizer);
+
+      analyser.getByteTimeDomainData(dataArray);
+
+      ctx.fillStyle = '#0a0a0a';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = '#00ff00';
+      ctx.beginPath();
+
+      const sliceWidth = canvas.width / bufferLength;
+      let x = 0;
+
+      for (let i = 0; i < bufferLength; i++) {
+        const v = dataArray[i] / 128.0;
+        const y = v * canvas.height / 2;
+
+        if (i === 0) {
+          ctx.moveTo(x, y);
+        } else {
+          ctx.lineTo(x, y);
+        }
+
+        x += sliceWidth;
+      }
+
+      ctx.stroke();
+    }
+
+    drawVisualizer();
+
+    // === CHAT INTERFACE ===
+    const chatMessages = document.getElementById('chat-messages');
+    const chatInput = document.getElementById('chat-input');
+    const chatSend = document.getElementById('chat-send');
+    const moduleListEl = document.getElementById('module-list');
+
+    function addMessage(text, type = 'user') {
+      const message = document.createElement('div');
+      message.className = `message ${type}`;
+
+      // Parse suggestions in assistant messages
+      if (type === 'assistant') {
+        let html = text.replace(/\n/g, '<br>');
+
+        // Detect module suggestions (patterns like "- Effect Name" or "• Effect Name" or "1. Effect Name")
+        const suggestionPatterns = [
+          /^[-•]\s*(.+?)(?:\s*-\s*.+)?$/gm,  // - Item or • Item
+          /^\d+\.\s*(.+?)(?:\s*-\s*.+)?$/gm  // 1. Item
+        ];
+
+        let hasSuggestions = false;
+
+        for (const pattern of suggestionPatterns) {
+          if (pattern.test(text)) {
+            hasSuggestions = true;
+            html = html.replace(pattern, (match, moduleName) => {
+              const cleanName = moduleName.trim();
+              return `<span class="suggestion-chip" onclick="sendSuggestion('${cleanName.replace(/'/g, "\\'")}')">${match}</span>`;
+            });
+          }
+        }
+
+        message.innerHTML = html;
+
+        // Add regenerate button if suggestions detected
+        if (hasSuggestions) {
+          const regenBtn = document.createElement('button');
+          regenBtn.className = 'regenerate-btn';
+          regenBtn.textContent = '↻ More Suggestions';
+          regenBtn.onclick = () => {
+            chatInput.value = 'suggest more module ideas';
+            sendMessage();
+          };
+          message.appendChild(document.createElement('br'));
+          message.appendChild(regenBtn);
+        }
+      } else {
+        message.innerHTML = text.replace(/\n/g, '<br>');
+      }
+
+      chatMessages.appendChild(message);
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    // Send suggestion when chip is clicked
+    window.sendSuggestion = (moduleName) => {
+      chatInput.value = moduleName;
+      sendMessage();
+    };
+
+    function updateModuleList() {
+      const modules = window.SynthCore.loader.listModules();
+      if (modules.length === 0) {
+        moduleListEl.textContent = 'No modules loaded';
+      } else {
+        moduleListEl.innerHTML = modules.map(m =>
+          `• ${m.name} v${m.version} <span style="color:#555">[${m.insertionPoint}]</span> <button onclick="unloadModule('${m.id}')" style="font-size:10px;background:#ff4444;color:#fff;border:none;padding:2px 6px;cursor:pointer;border-radius:2px;">Unload</button>`
+        ).join('<br>');
+      }
+    }
+
+    window.unloadModule = async (moduleId) => {
+      try {
+        await window.SynthCore.loader.unloadModule(moduleId);
+        addMessage(`✓ Module ${moduleId} unloaded`, 'system');
+        updateModuleList();
+      } catch (error) {
+        addMessage(`✗ Failed to unload module: ${error.message}`, 'system');
+      }
+    };
+
+    async function sendMessage() {
+      const text = chatInput.value.trim();
+      if (!text) return;
+
+      console.log('[Chat] Sending message:', text);
+      addMessage('You: ' + text, 'user');
+      chatInput.value = '';
+      chatSend.disabled = true;
+      chatSend.textContent = 'Generating...';
+
+      try {
+        console.log('[Chat] Fetching from API...');
+        const response = await fetch('http://localhost:5555/api/generate-module', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ request: text })
+        });
+
+        console.log('[Chat] Response received:', response.status, response.statusText);
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('[Chat] Server error response:', errorText);
+          throw new Error(`Server error: ${response.statusText}`);
+        }
+
+        const result = await response.json();
+        console.log('[Chat] Result:', result);
+
+        // Check if this is a suggestion response or module creation response
+        if (result.suggestions) {
+          // Format suggestions as a nice list
+          let suggestionText = 'Here are some module ideas:\n\n';
+          result.suggestions.forEach((s, i) => {
+            suggestionText += `${i + 1}. ${s.name}\n   ${s.description}\n   Category: ${s.category}\n\n`;
+          });
+          addMessage(suggestionText, 'assistant');
+        } else {
+          // Module creation response
+          const { moduleId, url } = result;
+
+          addMessage(`✓ Module generated: ${moduleId}`, 'system');
+          addMessage('Loading module...', 'system');
+
+          // Load module
+          console.log('[Chat] Loading module from:', url);
+          await window.SynthCore.loader.loadModule(url);
+
+          addMessage(`✓ Module ${moduleId} loaded successfully!`, 'assistant');
+          updateModuleList();
+        }
+
+      } catch (error) {
+        addMessage(`✗ Error: ${error.message}`, 'system');
+        console.error('[Chat] Error details:', error);
+      } finally {
+        chatSend.disabled = false;
+        chatSend.textContent = 'Send Request';
+      }
+    }
+
+    chatSend.addEventListener('click', sendMessage);
+    chatInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') sendMessage();
+    });
+
+    // Quick suggestion buttons
+    document.getElementById('suggest-modules-btn')?.addEventListener('click', () => {
+      chatInput.value = 'suggest module ideas';
+      sendMessage();
+    });
+
+    document.getElementById('suggest-effects-btn')?.addEventListener('click', () => {
+      chatInput.value = 'suggest creative effects';
+      sendMessage();
+    });
+
+    document.getElementById('suggest-modulation-btn')?.addEventListener('click', () => {
+      chatInput.value = 'suggest modulation sources';
+      sendMessage();
+    });
+
+    // === ANIMATION SYSTEM ===
+    const AnimationController = {
+      // Boot sequence animation
+      playBootSequence() {
+        const bootLines = document.querySelectorAll('.boot-line');
+        const overlay = document.getElementById('boot-overlay');
+
+        anime.timeline()
+          .add({
+            targets: bootLines,
+            opacity: [0, 1],
+            translateX: [-20, 0],
+            delay: anime.stagger(150),
+            duration: 300,
+            easing: 'cubicBezier(0.16, 1, 0.3, 1)'
+          })
+          .add({
+            targets: bootLines[bootLines.length - 1],
+            scale: [1, 1.05, 1],
+            duration: 200,
+            easing: 'easeOutQuad'
+          }, '-=100')
+          .add({
+            targets: overlay,
+            opacity: 0,
+            duration: 400,
+            easing: 'easeOutExpo',
+            complete: () => {
+              overlay.style.display = 'none';
+              this.playInterfaceEntrance();
+            }
+          }, '+=500');
+      },
+
+      // Interface entrance choreography
+      playInterfaceEntrance() {
+        const sections = document.querySelectorAll('.control-section, .synth-panel, .chat-panel');
+
+        anime({
+          targets: sections,
+          opacity: [0, 1],
+          translateY: [30, 0],
+          delay: anime.stagger(80, {start: 100}),
+          duration: 500,
+          easing: 'cubicBezier(0.22, 1, 0.36, 1)'
+        });
+      },
+
+      // Module load animation (called from synthesizer-core.js)
+      playModuleEnter(moduleElement) {
+        // Simple, elegant slide-in
+        moduleElement.style.opacity = '0';
+        moduleElement.style.transform = 'translateY(12px)';
+
+        anime({
+          targets: moduleElement,
+          opacity: [0, 1],
+          translateY: [12, 0],
+          duration: 400,
+          easing: 'cubicBezier(0.22, 1, 0.36, 1)'
+        });
+
+        // Initialize draggable after animation
+        setTimeout(() => {
+          if (window.interact && !moduleElement.getAttribute('data-draggable')) {
+            initDraggable(moduleElement);
+            moduleElement.setAttribute('data-draggable', 'true');
+          }
+        }, 450);
+      },
+
+      // Module bypass animation
+      playModuleBypass(moduleElement, bypassed) {
+        anime({
+          targets: moduleElement,
+          opacity: bypassed ? 0.5 : 1,
+          filter: bypassed ? 'grayscale(1)' : 'grayscale(0)',
+          duration: 300,
+          easing: 'easeOutQuad'
+        });
+      },
+
+      // Module delete animation
+      playModuleDelete(moduleElement, callback) {
+        // Glitch out effect
+        anime({
+          targets: moduleElement,
+          duration: 150,
+          keyframes: [
+            { translateX: -4, filter: 'hue-rotate(90deg)' },
+            { translateX: 4, filter: 'hue-rotate(180deg)' },
+            { translateX: -2, filter: 'hue-rotate(270deg)' },
+            { translateX: 2, filter: 'hue-rotate(0deg)' }
+          ],
+          easing: 'linear'
+        });
+
+        // Fade out and collapse
+        anime({
+          targets: moduleElement,
+          opacity: [1, 0],
+          height: [moduleElement.offsetHeight, 0],
+          marginTop: 0,
+          marginBottom: 0,
+          paddingTop: 0,
+          paddingBottom: 0,
+          delay: 150,
+          duration: 400,
+          easing: 'cubicBezier(0.16, 1, 0.3, 1)',
+          complete: callback
+        });
+      },
+
+      // Key press animation enhancement
+      playKeyPress(keyElement) {
+        // Particle burst effect
+        const rect = keyElement.getBoundingClientRect();
+        const particles = 8;
+
+        for (let i = 0; i < particles; i++) {
+          const particle = document.createElement('div');
+          particle.style.cssText = `
+            position: fixed;
+            width: 4px;
+            height: 4px;
+            background: #00ff00;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 1000;
+            left: ${rect.left + rect.width / 2}px;
+            top: ${rect.top + rect.height / 2}px;
+            box-shadow: 0 0 6px rgba(0, 255, 0, 0.8);
+          `;
+          document.body.appendChild(particle);
+
+          const angle = (Math.PI * 2 * i) / particles;
+          const distance = 30 + Math.random() * 20;
+
+          anime({
+            targets: particle,
+            translateX: Math.cos(angle) * distance,
+            translateY: Math.sin(angle) * distance,
+            opacity: [1, 0],
+            scale: [1, 0.5],
+            duration: 400 + Math.random() * 200,
+            easing: 'easeOutQuad',
+            complete: () => particle.remove()
+          });
+        }
+      },
+
+      // Visualizer pulse sync
+      pulseVisualizer(canvas) {
+        anime({
+          targets: canvas,
+          boxShadow: [
+            '0 0 0 rgba(0, 255, 0, 0)',
+            '0 0 30px rgba(0, 255, 0, 0.6)',
+            '0 0 0 rgba(0, 255, 0, 0)'
+          ],
+          duration: 800,
+          easing: 'easeOutQuad'
+        });
+      }
+    };
+
+    // Make animation controller globally available
+    window.SynthAnimations = AnimationController;
+
+    // === DRAGGABLE MODULES ===
+    function initDraggable(element) {
+      if (!window.interact) return;
+
+      interact(element)
+        .draggable({
+          inertia: true,
+          modifiers: [
+            interact.modifiers.restrictRect({
+              restriction: 'parent',
+              endOnly: true
+            })
+          ],
+          autoScroll: true,
+          listeners: {
+            start(event) {
+              event.target.classList.add('dragging');
+            },
+            move(event) {
+              const target = event.target;
+              const x = (parseFloat(target.getAttribute('data-x')) || 0) + event.dx;
+              const y = (parseFloat(target.getAttribute('data-y')) || 0) + event.dy;
+
+              target.style.transform = `translate(${x}px, ${y}px)`;
+              target.setAttribute('data-x', x);
+              target.setAttribute('data-y', y);
+            },
+            end(event) {
+              event.target.classList.remove('dragging');
+            }
+          }
+        });
+    }
+
+    // Make modules draggable when added
+    const originalUpdateModuleList = updateModuleList;
+    updateModuleList = function() {
+      originalUpdateModuleList();
+
+      // Initialize draggable for all control sections
+      setTimeout(() => {
+        document.querySelectorAll('.control-section').forEach(el => {
+          if (!el.getAttribute('data-draggable')) {
+            initDraggable(el);
+            el.setAttribute('data-draggable', 'true');
+          }
+        });
+      }, 100);
+    };
+
+    // === PRESET SYSTEM ===
+    function initPresetSystem() {
+      const presetNameInput = document.getElementById('preset-name-input');
+      const presetSaveBtn = document.getElementById('preset-save-btn');
+      const presetList = document.getElementById('preset-list');
+
+      // Save preset
+      presetSaveBtn.addEventListener('click', () => {
+        const name = presetNameInput.value.trim();
+        if (!name) {
+          alert('Please enter a preset name');
+          return;
+        }
+
+        try {
+          window.SynthCore.loader.savePreset(name);
+          presetNameInput.value = '';
+          updatePresetList();
+          addMessage(`✓ Preset "${name}" saved`, 'system');
+        } catch (error) {
+          alert(`Failed to save preset: ${error.message}`);
+        }
+      });
+
+      // Enter key to save
+      presetNameInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+          presetSaveBtn.click();
+        }
+      });
+
+      // Update preset list
+      window.updatePresetList = function() {
+        const presets = window.SynthCore.loader.listPresets();
+        const presetNames = Object.keys(presets);
+
+        if (presetNames.length === 0) {
+          presetList.innerHTML = '<div style="font-size: 11px; color: #666; font-style: italic;">No presets saved</div>';
+          return;
+        }
+
+        // Sort by timestamp (newest first)
+        presetNames.sort((a, b) => presets[b].timestamp - presets[a].timestamp);
+
+        presetList.innerHTML = presetNames.map(name => {
+          const preset = presets[name];
+          const date = new Date(preset.timestamp);
+          const dateStr = date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+          return `
+            <div style="background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 2px; padding: 8px; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center;">
+              <div style="flex: 1;">
+                <div style="font-size: 11px; color: #00ff00; font-weight: 600; margin-bottom: 2px;">${name}</div>
+                <div style="font-size: 9px; color: #666;">
+                  ${preset.modules.length} modules • ${dateStr}
+                </div>
+              </div>
+              <div style="display: flex; gap: 4px;">
+                <button
+                  onclick="loadPresetByName('${name.replace(/'/g, "\\'")}')"
+                  style="background: #0a0a0a; color: #00ff00; border: 1px solid #00ff00; padding: 4px 8px; cursor: pointer; font-size: 9px; border-radius: 2px; text-transform: uppercase;"
+                  onmouseover="this.style.background='#00ff00'; this.style.color='#0a0a0a';"
+                  onmouseout="this.style.background='#0a0a0a'; this.style.color='#00ff00';"
+                >Load</button>
+                <button
+                  onclick="deletePresetByName('${name.replace(/'/g, "\\'")}')"
+                  style="background: #0a0a0a; color: #ff4444; border: 1px solid #ff4444; padding: 4px 8px; cursor: pointer; font-size: 9px; border-radius: 2px; text-transform: uppercase;"
+                  onmouseover="this.style.background='#ff4444'; this.style.color='#0a0a0a';"
+                  onmouseout="this.style.background='#0a0a0a'; this.style.color='#ff4444';"
+                >Delete</button>
+              </div>
+            </div>
+          `;
+        }).join('');
+      };
+
+      // Load preset by name
+      window.loadPresetByName = async function(name) {
+        const presets = window.SynthCore.loader.listPresets();
+        const preset = presets[name];
+
+        if (!preset) {
+          alert('Preset not found');
+          return;
+        }
+
+        if (!confirm(`Load preset "${name}"? This will clear all current modules.`)) {
+          return;
+        }
+
+        try {
+          addMessage(`Loading preset "${name}"...`, 'system');
+          await window.SynthCore.loader.loadPreset(preset);
+          updateModuleList();
+          updatePresetList();
+          addMessage(`✓ Preset "${name}" loaded`, 'system');
+        } catch (error) {
+          alert(`Failed to load preset: ${error.message}`);
+          addMessage(`✗ Failed to load preset: ${error.message}`, 'system');
+        }
+      };
+
+      // Delete preset by name
+      window.deletePresetByName = function(name) {
+        if (!confirm(`Delete preset "${name}"?`)) {
+          return;
+        }
+
+        try {
+          window.SynthCore.loader.deletePreset(name);
+          updatePresetList();
+          addMessage(`✓ Preset "${name}" deleted`, 'system');
+        } catch (error) {
+          alert(`Failed to delete preset: ${error.message}`);
+        }
+      };
+
+      // Helper to update synth UI when preset is loaded
+      window.updateSynthUI = function() {
+        const synth = window.SynthCore.synth;
+        if (!synth) return;
+
+        const waveform = document.getElementById('waveform');
+        const detune = document.getElementById('detune');
+        const detuneValue = document.getElementById('detune-value');
+        const attack = document.getElementById('attack');
+        const attackValue = document.getElementById('attack-value');
+        const release = document.getElementById('release');
+        const releaseValue = document.getElementById('release-value');
+        const volume = document.getElementById('volume');
+        const volumeValue = document.getElementById('volume-value');
+        const filterCutoff = document.getElementById('filter-cutoff');
+        const filterCutoffValue = document.getElementById('filter-cutoff-value');
+        const filterResonance = document.getElementById('filter-resonance');
+        const filterResonanceValue = document.getElementById('filter-resonance-value');
+
+        if (waveform) waveform.value = synth.params.waveform;
+        if (detune) {
+          detune.value = synth.params.detune;
+          if (detuneValue) detuneValue.textContent = synth.params.detune;
+        }
+        if (attack) {
+          attack.value = synth.params.attack;
+          if (attackValue) attackValue.textContent = synth.params.attack + 's';
+        }
+        if (release) {
+          release.value = synth.params.release;
+          if (releaseValue) releaseValue.textContent = synth.params.release + 's';
+        }
+        if (volume) {
+          volume.value = synth.params.volume * 100;
+          if (volumeValue) volumeValue.textContent = Math.round(synth.params.volume * 100) + '%';
+        }
+        if (filterCutoff) {
+          filterCutoff.value = synth.params.filterCutoff;
+          if (filterCutoffValue) filterCutoffValue.textContent = Math.round(synth.params.filterCutoff) + ' Hz';
+        }
+        if (filterResonance) {
+          filterResonance.value = synth.params.filterResonance;
+          if (filterResonanceValue) filterResonanceValue.textContent = synth.params.filterResonance.toFixed(1);
+        }
+
+        // Apply filter settings
+        synth.updateFilter(synth.params.filterCutoff, synth.params.filterResonance);
+        synth.updateVolume(synth.params.volume);
+      };
+
+      updatePresetList();
+      console.log('💾 Preset system initialized');
+    }
+
+    // === MODULE BROWSER ===
+    const AVAILABLE_MODULES = [
+      {
+        id: 'effect-delay',
+        name: 'Delay',
+        description: 'Echo/repeat effect with feedback',
+        path: './modules/effect-delay.js',
+        category: 'time'
+      },
+      {
+        id: 'effect-distortion',
+        name: 'Distortion',
+        description: 'Waveshaping distortion with drive',
+        path: './modules/effect-distortion.js',
+        category: 'dynamics'
+      },
+      {
+        id: 'effect-reverb',
+        name: 'Reverb',
+        description: 'Convolution reverb for spatial depth',
+        path: './modules/effect-reverb.js',
+        category: 'time'
+      },
+      {
+        id: 'effect-chorus',
+        name: 'Chorus',
+        description: 'Triple LFO chorus for thick sound',
+        path: './modules/effect-chorus.js',
+        category: 'modulation'
+      },
+      {
+        id: 'filter-highpass',
+        name: 'High-Pass Filter',
+        description: 'Remove low frequencies',
+        path: './modules/filter-highpass.js',
+        category: 'filter'
+      },
+      {
+        id: 'lfo-modulator',
+        name: 'LFO Modulator',
+        description: 'Auto-wah filter sweep effect',
+        path: './modules/lfo-modulator.js',
+        category: 'modulation'
+      },
+      {
+        id: 'effect-ringmod',
+        name: 'Ring Modulator ✨',
+        description: 'Metallic, robotic timbres',
+        path: './modules/effect-ringmod.js',
+        category: 'transform'
+      },
+      {
+        id: 'effect-pitchshift',
+        name: 'Pitch Shifter ✨',
+        description: 'Harmonization & pitch shifting',
+        path: './modules/effect-pitchshift.js',
+        category: 'transform'
+      },
+      {
+        id: 'effect-granular',
+        name: 'Granular Synth ✨',
+        description: 'Break audio into grains, create textures',
+        path: './modules/effect-granular.js',
+        category: 'transform'
+      },
+      {
+        id: 'effect-haas',
+        name: 'Haas Effect',
+        description: 'Stereo width via psychoacoustic delay',
+        path: './modules/effect-haas.js',
+        category: 'spatial'
+      }
+    ];
+
+    function initModuleBrowser() {
+      const browser = document.getElementById('module-browser');
+
+      AVAILABLE_MODULES.forEach(module => {
+        const item = document.createElement('div');
+        item.className = 'module-item';
+        item.id = `browser-${module.id}`;
+
+        item.innerHTML = `
+          <div class="module-info">
+            <div class="module-name">${module.name}</div>
+            <div class="module-desc">${module.description}</div>
+          </div>
+          <button class="module-load-btn" data-module-id="${module.id}">Load</button>
+        `;
+
+        browser.appendChild(item);
+
+        // Bind load button
+        const btn = item.querySelector('.module-load-btn');
+        btn.addEventListener('click', async () => {
+          try {
+            btn.disabled = true;
+            btn.textContent = 'Loading...';
+
+            await window.SynthCore.loader.loadModule(module.path);
+
+            // Update UI
+            item.classList.add('loaded');
+            btn.textContent = 'Loaded';
+
+            console.log(`✓ Module ${module.id} loaded from browser`);
+          } catch (error) {
+            console.error(`Failed to load ${module.id}:`, error);
+            btn.disabled = false;
+            btn.textContent = 'Error';
+            setTimeout(() => {
+              btn.textContent = 'Load';
+            }, 2000);
+          }
+        });
+      });
+
+      // Update browser when modules change
+      window.updateModuleBrowser = () => {
+        const loadedIds = new Set(
+          Array.from(window.SynthCore.loader.modules.keys())
+        );
+
+        AVAILABLE_MODULES.forEach(module => {
+          const item = document.getElementById(`browser-${module.id}`);
+          const btn = item.querySelector('.module-load-btn');
+
+          if (loadedIds.has(module.id)) {
+            item.classList.add('loaded');
+            btn.disabled = true;
+            btn.textContent = 'Loaded';
+          } else {
+            item.classList.remove('loaded');
+            btn.disabled = false;
+            btn.textContent = 'Load';
+          }
+        });
+      };
+
+      console.log('📦 Module browser initialized');
+    }
+
+    // === INITIALIZATION ===
+    console.log('🎹 Modular Synthesizer initialized');
+    console.log('💡 Agent SDK server ready');
+    console.log('📦 SynthCore API:', window.SynthCore);
+
+    // Initialize module browser
+    initModuleBrowser();
+
+    // Initialize preset system
+    initPresetSystem();
+
+    // Play boot sequence
+    AnimationController.playBootSequence();
+
+    updateModuleList();
+  </script>
+</body>
+</html>
