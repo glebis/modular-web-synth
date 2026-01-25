@@ -1,6 +1,8 @@
 # Modular Web Synthesizer
 
-A terminal-aesthetic modular synthesizer built with Web Audio API and Claude Agent SDK. Features dynamic module generation, MIDI processing chains, and experimental sequencers including Euclidean rhythms and binary spiral patterns.
+AI-powered modular synthesizer built with Web Audio API and Claude Agent SDK. Generate custom audio modules through natural language requests.
+
+**⚠️ Note**: AI module generation requires [Claude Code](https://claude.ai/code) subscription. Live demo provides pre-built modules only.
 
 ## Features
 
@@ -35,36 +37,50 @@ A terminal-aesthetic modular synthesizer built with Web Audio API and Claude Age
 - **Quantizer** - Snap notes to scales (Major, Minor, Pentatonic, etc.)
 - **MIDI Delay** - Time-based note repetition
 
-### 🤖 AI-Powered Module Generation
+### 🤖 AI-Powered Module Generation (Requires Claude Code Subscription)
 - **Claude Agent SDK integration** for dynamic module creation
-- Chat interface to generate new effects on demand
-- Suggestion system for creative module ideas
+- Natural language requests like "create a shimmer reverb"
+- Modules generated and loaded instantly into audio chain
+- Only works with local dev server (not available on Vercel deployment)
 
 ### 💾 Preset System
 - Save/load entire synthesizer setups
 - Persistent localStorage storage
 - Export/import capability
 
-## Installation
+## Quick Start
 
+### Option 1: Try the Live Demo
+Visit the deployed version (pre-built modules only, no AI generation):
+- All audio effects and MIDI modules included
+- Preset system works
+- No Claude Code subscription needed
+
+### Option 2: Run Locally with AI Features
+
+**Requirements**:
+- Node.js 18+
+- [Claude Code](https://claude.ai/code) subscription for AI module generation
+
+**Installation**:
 ```bash
+git clone https://github.com/yourusername/modular-web-synth.git
+cd modular-web-synth
 npm install
 ```
 
-## Development
-
+**Start Development Server**:
 ```bash
-# Start development server
 npm run dev
-
-# Build TypeScript
-npm run build
-
-# Start production server
-npm start
 ```
 
-Server runs at: http://localhost:5555
+Open http://localhost:5555/synthesizer.html
+
+**Build for Production**:
+```bash
+npm run build
+npm start
+```
 
 ## Architecture
 
@@ -131,6 +147,23 @@ Distributes N pulses across M steps as evenly as possible using the Euclidean al
 ### Binary Spiral Sequencer
 Concentric rings with power-of-2 step counts (1, 2, 4, 8, 16, 32, 64, 128 beats). Playhead spirals outward creating fractal polyrhythmic patterns. Features interactive canvas visualization with click-to-toggle steps.
 
+## Using AI Module Generation
+
+**Only available when running locally with Claude Code**:
+
+1. Start dev server: `npm run dev`
+2. Type a feature request in the chat interface:
+   - "Add a tape delay with wow and flutter"
+   - "Create a shimmer reverb"
+   - "Make a synced LFO tremolo"
+3. Click "Send Request"
+4. Claude generates code and loads module automatically
+
+Example requests:
+- Effects: "phaser", "flanger", "auto-pan"
+- Creative: "glitch effect", "lo-fi degradation"
+- Modulation: "envelope follower", "sample & hold"
+
 ## Bypass & Control
 
 All modules include:
@@ -167,6 +200,23 @@ Requires modern browser with:
 - Web Audio API support
 - ES6 modules
 - Web MIDI API (optional, for MIDI controller input)
+
+## Deployment
+
+### Vercel/Netlify/Static Hosting
+The synthesizer works perfectly on static hosts:
+- ✅ All pre-built audio and MIDI modules
+- ✅ Preset system (localStorage)
+- ✅ Full synthesizer functionality
+- ❌ AI module generation (requires local Claude Code)
+
+### Enabling AI Features
+AI module generation requires:
+1. Claude Code subscription
+2. Local development server (`npm run dev`)
+3. Backend running at localhost:5555
+
+This is a **local-only feature** by design - it cannot run on deployed static sites.
 
 ## License
 
