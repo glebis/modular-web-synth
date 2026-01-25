@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Claude Code Synthesizer</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/interactjs@1.10.19/dist/interact.min.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,200..1000;1,9..40,200..1000&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -298,7 +297,6 @@
         inset 0 1px 0 rgba(255, 255, 255, 0.05),
         inset 0 -1px 0 rgba(0, 0, 0, 0.3),
         0 2px 4px var(--shadow-soft);
-      cursor: move;
     }
 
     .control-section:hover {
@@ -325,14 +323,6 @@
       }
     }
 
-    /* Dragging state */
-    .control-section.dragging {
-      opacity: 0.8;
-      box-shadow: 0 8px 24px var(--shadow-deep);
-      transform: scale(1.02);
-      z-index: 1000;
-      cursor: grabbing;
-    }
 
     .control-section.bypassed {
       opacity: 0.5;
@@ -1664,13 +1654,6 @@
           easing: 'cubicBezier(0.22, 1, 0.36, 1)'
         });
 
-        // Initialize draggable after animation
-        setTimeout(() => {
-          if (window.interact && !moduleElement.getAttribute('data-draggable')) {
-            initDraggable(moduleElement);
-            moduleElement.setAttribute('data-draggable', 'true');
-          }
-        }, 450);
       },
 
       // Module bypass animation
@@ -1771,55 +1754,6 @@
     // Make animation controller globally available
     window.SynthAnimations = AnimationController;
 
-    // === DRAGGABLE MODULES ===
-    function initDraggable(element) {
-      if (!window.interact) return;
-
-      interact(element)
-        .draggable({
-          inertia: true,
-          modifiers: [
-            interact.modifiers.restrictRect({
-              restriction: 'parent',
-              endOnly: true
-            })
-          ],
-          autoScroll: true,
-          listeners: {
-            start(event) {
-              event.target.classList.add('dragging');
-            },
-            move(event) {
-              const target = event.target;
-              const x = (parseFloat(target.getAttribute('data-x')) || 0) + event.dx;
-              const y = (parseFloat(target.getAttribute('data-y')) || 0) + event.dy;
-
-              target.style.transform = `translate(${x}px, ${y}px)`;
-              target.setAttribute('data-x', x);
-              target.setAttribute('data-y', y);
-            },
-            end(event) {
-              event.target.classList.remove('dragging');
-            }
-          }
-        });
-    }
-
-    // Make modules draggable when added
-    const originalUpdateModuleList = updateModuleList;
-    updateModuleList = function() {
-      originalUpdateModuleList();
-
-      // Initialize draggable for all control sections
-      setTimeout(() => {
-        document.querySelectorAll('.control-section').forEach(el => {
-          if (!el.getAttribute('data-draggable')) {
-            initDraggable(el);
-            el.setAttribute('data-draggable', 'true');
-          }
-        });
-      }, 100);
-    };
 
     // === PRESET SYSTEM ===
     function initPresetSystem() {
