@@ -887,8 +887,25 @@ function initializeNexusControls(audioNodes, params, retryCount = 0) {
 
   console.log('[AI Drum] Initializing NexusUI controls...');
 
-  // Use the analyser from audio nodes (already in the chain)
-  const analyser = audioNodes.nodes.analyser;
+  // Get or create analyser in the correct audio context
+  const ctx = audioNodes.nodes.masterGain.context;
+  let analyser = audioNodes.nodes.analyser;
+
+  // Verify analyser is from the correct context
+  if (!analyser || analyser.context !== ctx) {
+    console.log('[AI Drum] Creating analyser for oscilloscope');
+    analyser = ctx.createAnalyser();
+    analyser.fftSize = 2048;
+
+    // Connect to audio chain: masterGain -> analyser -> (destination already connected by test page)
+    // Don't disconnect masterGain as test page may have connected it
+    // Just tap the signal for analysis
+    const splitter = ctx.createChannelSplitter(2);
+    audioNodes.nodes.masterGain.connect(splitter);
+    splitter.connect(analyser, 0);
+
+    audioNodes.nodes.analyser = analyser;
+  }
 
   // Oscilloscope - Large central visualizer
   const oscilloscope = new Nexus.Oscilloscope('#ai-oscilloscope', {
@@ -896,7 +913,12 @@ function initializeNexusControls(audioNodes, params, retryCount = 0) {
   });
 
   // Connect oscilloscope to analyser
-  oscilloscope.connect(analyser);
+  try {
+    oscilloscope.connect(analyser);
+    console.log('[AI Drum] ✓ Oscilloscope connected');
+  } catch (error) {
+    console.error('[AI Drum] ✗ Oscilloscope connection failed:', error);
+  }
 
   // BPM Dial
   const bpmDial = new Nexus.Dial('#ai-bpm-dial-viz', {
@@ -1255,11 +1277,9 @@ function startSequencer(audioNodes, params) {
 
     // Play active tracks on this step
     pattern.tracks.forEach((track, trackIndex) => {
-      if (!track.mute && track.steps[currentStep] === 1) {
+      if (!track.mute && track.steps[currentStep] === 1 && track.sound) {
         // Play the sound for this track
-        if (params.currentVariants && params.currentVariants[trackIndex]) {
-          playVariant(params.currentVariants[trackIndex], audioNodes);
-        }
+        playVariant(track.sound, audioNodes);
       }
     });
 
@@ -1343,6 +1363,7 @@ function selectVariant(sound, index, audioNodes, params) {
 function addTrack(sound, audioNodes, params) {
   const track = {
     soundId: sound.id,
+    sound: sound, // Store the actual sound object for playback
     prompt: sound.prompt,
     steps: new Array(16).fill(0),
     volume: 0.8,
@@ -1351,6 +1372,24 @@ function addTrack(sound, audioNodes, params) {
   };
 
   params.tracks.push(track);
+
+  // Also add to current pattern if there's space
+  const pattern = params.patterns[params.currentPattern];
+  const trackIndex = pattern.tracks.findIndex(t => t.sampleId === null);
+
+  if (trackIndex !== -1) {
+    pattern.tracks[trackIndex] = {
+      sampleId: sound.id,
+      sound: sound, // Store sound for playback
+      steps: new Array(16).fill(0),
+      mute: false,
+      solo: false,
+      volume: 0.8
+    };
+    console.log(`[AI Drum] Added sound to pattern track ${trackIndex + 1}`);
+  } else {
+    console.warn('[AI Drum] No empty pattern tracks available');
+  }
 
   // Re-render tracks
   renderTracks(audioNodes, params);
@@ -1383,11 +1422,20 @@ function renderTracks(audioNodes, params) {
     for (let i = 0; i < 16; i++) {
       const step = document.createElement('div');
       step.className = 'ai-step';
+      step.dataset.step = i; // For highlighting during playback
       if (track.steps[i] === 1) step.classList.add('active');
 
       step.addEventListener('click', () => {
+        // Toggle step
         track.steps[i] = track.steps[i] === 1 ? 0 : 1;
-        step.classList.toggle('active');
+        step.classList.add('active');
+
+        // Also update pattern track
+        const pattern = params.patterns[params.currentPattern];
+        if (pattern && pattern.tracks[trackIndex]) {
+          pattern.tracks[trackIndex].steps[i] = track.steps[i];
+          console.log(`[AI Drum] Updated pattern track ${trackIndex + 1}, step ${i + 1}: ${track.steps[i] ? 'ON' : 'OFF'}`);
+        }
       });
 
       steps.appendChild(step);

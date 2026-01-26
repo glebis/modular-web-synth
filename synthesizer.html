@@ -189,7 +189,7 @@
     /* Hardware-style keyboard */
     .keyboard {
       display: flex;
-      gap: 1px;
+      gap: 0;
       margin: 16px auto;
       justify-content: center;
       padding: 12px;
@@ -198,6 +198,17 @@
       background: linear-gradient(180deg, #0a0a0a 0%, #1a1a1a 100%);
       border-radius: 3px;
       border: 1px solid var(--panel-border);
+      user-select: none;
+      -webkit-user-select: none;
+      -moz-user-select: none;
+      -ms-user-select: none;
+    }
+
+    .key-container {
+      position: relative;
+      display: inline-block;
+      user-select: none;
+      -webkit-user-select: none;
     }
 
     .key {
@@ -205,6 +216,7 @@
       height: 150px;
       background: linear-gradient(180deg, #f5f5f5 0%, #e0e0e0 100%);
       border: 1px solid #999;
+      border-right: 1px solid #ccc;
       cursor: pointer;
       position: relative;
       transition: all 0.05s var(--ease-out-quint);
@@ -214,6 +226,9 @@
         0 5px 8px rgba(0, 0, 0, 0.3),
         inset 0 1px 0 rgba(255, 255, 255, 0.5);
       border-radius: 0 0 3px 3px;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
     }
 
     .key:hover {
@@ -236,17 +251,19 @@
     }
 
     .key.black {
-      width: 20px;
+      width: 22px;
       height: 95px;
       background: linear-gradient(180deg, #2a2a2a 0%, #0a0a0a 100%);
       border: 1px solid #000;
       position: absolute;
-      z-index: 1;
-      margin-left: -14px;
+      top: 0;
+      right: -11px;
+      z-index: 10;
       box-shadow:
         0 3px 0 #000,
         0 4px 6px rgba(0, 0, 0, 0.5),
         inset 0 1px 0 rgba(255, 255, 255, 0.1);
+      border-radius: 0 0 2px 2px;
     }
 
     .key.black:hover {
@@ -1011,6 +1028,12 @@
           </label>
           <input type="range" id="release" min="0" max="2" step="0.01" value="0.3">
         </div>
+        <div class="control-group">
+          <label class="control-label" style="display: flex; align-items: center; cursor: pointer;">
+            <input type="checkbox" id="hold-mode" style="width: auto; margin-right: 8px; cursor: pointer;">
+            <span>Hold Mode</span>
+          </label>
+        </div>
       </div>
 
       <!-- Volume Control -->
@@ -1161,6 +1184,10 @@
     // Initialize MIDI Core
     const midi = window.MIDICore.init(synth);
 
+    // Hold mode state
+    let holdMode = false;
+    let heldNote = null;
+
     // Load previously loaded modules from localStorage
     synth.moduleLoader.loadFromLocalStorage();
 
@@ -1243,6 +1270,17 @@
       document.getElementById('release-value').textContent = e.target.value + 's';
     });
 
+    document.getElementById('hold-mode').addEventListener('change', (e) => {
+      holdMode = e.target.checked;
+      if (!holdMode && heldNote !== null) {
+        // Release held note when hold mode is disabled
+        midi.releaseNote(heldNote);
+        const keyElement = document.querySelector(`[data-note="${Object.keys(noteToMIDI).find(k => noteToMIDI[k] === heldNote)}"]`);
+        if (keyElement) keyElement.classList.remove('active');
+        heldNote = null;
+      }
+    });
+
     document.getElementById('volume').addEventListener('input', (e) => {
       const vol = parseInt(e.target.value) / 100;
       synth.updateVolume(vol);
@@ -1276,6 +1314,11 @@
     ];
 
     whiteNotes.forEach((note, i) => {
+      // Create container for white key and its black key
+      const container = document.createElement('div');
+      container.className = 'key-container';
+
+      // Create white key
       const key = document.createElement('div');
       key.className = 'key';
       key.dataset.note = note;
@@ -1288,7 +1331,19 @@
       key.addEventListener('mousedown', () => {
         const midiNote = noteToMIDI[note];
         if (midiNote) {
+          // Release previously held note if in hold mode
+          if (holdMode && heldNote !== null && heldNote !== midiNote) {
+            midi.releaseNote(heldNote);
+            const prevKey = document.querySelector(`[data-note="${Object.keys(noteToMIDI).find(k => noteToMIDI[k] === heldNote)}"]`);
+            if (prevKey) prevKey.classList.remove('active');
+          }
+
           midi.triggerNote(midiNote, 100);
+
+          // Track held note if in hold mode
+          if (holdMode) {
+            heldNote = midiNote;
+          }
         }
         key.classList.add('active');
 
@@ -1299,24 +1354,30 @@
       });
 
       key.addEventListener('mouseup', () => {
-        const midiNote = noteToMIDI[note];
-        if (midiNote) {
-          midi.releaseNote(midiNote);
+        // Only release if not in hold mode
+        if (!holdMode) {
+          const midiNote = noteToMIDI[note];
+          if (midiNote) {
+            midi.releaseNote(midiNote);
+          }
+          key.classList.remove('active');
         }
-        key.classList.remove('active');
       });
 
       key.addEventListener('mouseleave', () => {
-        const midiNote = noteToMIDI[note];
-        if (midiNote) {
-          midi.releaseNote(midiNote);
+        // Only release if not in hold mode
+        if (!holdMode) {
+          const midiNote = noteToMIDI[note];
+          if (midiNote) {
+            midi.releaseNote(midiNote);
+          }
+          key.classList.remove('active');
         }
-        key.classList.remove('active');
       });
 
-      keyboard.appendChild(key);
+      container.appendChild(key);
 
-      // Add black key after this white key (if exists)
+      // Add black key if exists for this position
       if (blackNotes[i]) {
         const blackKey = document.createElement('div');
         blackKey.className = 'key black';
@@ -1331,29 +1392,50 @@
           e.stopPropagation();
           const midiNote = noteToMIDI[blackNotes[i]];
           if (midiNote) {
+            // Release previously held note if in hold mode
+            if (holdMode && heldNote !== null && heldNote !== midiNote) {
+              midi.releaseNote(heldNote);
+              const prevKey = document.querySelector(`[data-note="${Object.keys(noteToMIDI).find(k => noteToMIDI[k] === heldNote)}"]`);
+              if (prevKey) prevKey.classList.remove('active');
+            }
+
             midi.triggerNote(midiNote, 100);
+
+            // Track held note if in hold mode
+            if (holdMode) {
+              heldNote = midiNote;
+            }
           }
           blackKey.classList.add('active');
         });
 
-        blackKey.addEventListener('mouseup', () => {
-          const midiNote = noteToMIDI[blackNotes[i]];
-          if (midiNote) {
-            midi.releaseNote(midiNote);
+        blackKey.addEventListener('mouseup', (e) => {
+          e.stopPropagation();
+          // Only release if not in hold mode
+          if (!holdMode) {
+            const midiNote = noteToMIDI[blackNotes[i]];
+            if (midiNote) {
+              midi.releaseNote(midiNote);
+            }
+            blackKey.classList.remove('active');
           }
-          blackKey.classList.remove('active');
         });
 
         blackKey.addEventListener('mouseleave', () => {
-          const midiNote = noteToMIDI[blackNotes[i]];
-          if (midiNote) {
-            midi.releaseNote(midiNote);
+          // Only release if not in hold mode
+          if (!holdMode) {
+            const midiNote = noteToMIDI[blackNotes[i]];
+            if (midiNote) {
+              midi.releaseNote(midiNote);
+            }
+            blackKey.classList.remove('active');
           }
-          blackKey.classList.remove('active');
         });
 
-        keyboard.appendChild(blackKey);
+        container.appendChild(blackKey);
       }
+
+      keyboard.appendChild(container);
     });
 
     // === COMPUTER KEYBOARD INPUT ===
@@ -1377,7 +1459,19 @@
         // Trigger through MIDI chain instead of direct playNote
         const midiNote = noteToMIDI[note];
         if (midiNote) {
+          // Release previously held note if in hold mode
+          if (holdMode && heldNote !== null && heldNote !== midiNote) {
+            midi.releaseNote(heldNote);
+            const prevKey = document.querySelector(`[data-note="${Object.keys(noteToMIDI).find(k => noteToMIDI[k] === heldNote)}"]`);
+            if (prevKey) prevKey.classList.remove('active');
+          }
+
           midi.triggerNote(midiNote, 100);
+
+          // Track held note if in hold mode
+          if (holdMode) {
+            heldNote = midiNote;
+          }
         }
         const keyElement = document.querySelector(`[data-note="${note}"]`);
         if (keyElement) {
@@ -1394,12 +1488,15 @@
     window.addEventListener('keyup', (e) => {
       const note = keyMap[e.key.toLowerCase()];
       if (note) {
-        const midiNote = noteToMIDI[note];
-        if (midiNote) {
-          midi.releaseNote(midiNote);
+        // Only release if not in hold mode
+        if (!holdMode) {
+          const midiNote = noteToMIDI[note];
+          if (midiNote) {
+            midi.releaseNote(midiNote);
+          }
+          const keyElement = document.querySelector(`[data-note="${note}"]`);
+          if (keyElement) keyElement.classList.remove('active');
         }
-        const keyElement = document.querySelector(`[data-note="${note}"]`);
-        if (keyElement) keyElement.classList.remove('active');
       }
     });
 
