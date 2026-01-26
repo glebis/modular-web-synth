@@ -712,6 +712,18 @@ export default {
             </div>
           </div>
         </div>
+
+        <details class="ai-sounds-library" style="margin-top: 20px;">
+          <summary style="cursor: pointer; padding: 15px; background: #0f0f0f; border: 1px solid #222; border-radius: 6px; color: #00ff00; font-size: 14px;">
+            📦 Sounds Library (<span id="ai-sounds-count">0</span> sounds)
+          </summary>
+          <div id="ai-sounds-list" style="padding: 15px; background: #0a0a0a; border: 1px solid #222; border-top: none; border-radius: 0 0 6px 6px;">
+            <div style="color: #666; text-align: center; padding: 20px;">No sounds generated yet</div>
+          </div>
+          <div style="padding: 10px; background: #0f0f0f; border: 1px solid #222; border-top: none; border-radius: 0 0 6px 6px;">
+            <button id="ai-download-all" class="ai-generate-btn" style="width: 100%;">⬇ Download All Sounds</button>
+          </div>
+        </details>
       </div>
     `,
     bindEvents: (audioNodes, params) => {
@@ -876,6 +888,14 @@ function bindAIControls(audioNodes, params) {
     params.swing = parseInt(e.target.value);
     document.getElementById('ai-swing-value').textContent = params.swing + '%';
   });
+
+  // Download all sounds
+  document.getElementById('ai-download-all').addEventListener('click', () => {
+    downloadAllSounds();
+  });
+
+  // Load saved sounds on init
+  loadSoundsFromLocalStorage();
 }
 
 function initializeNexusControls(audioNodes, params, retryCount = 0) {
@@ -1103,6 +1123,9 @@ function displayVariants(sounds, audioNodes, params) {
   // Store sounds for morphing
   params.currentVariants = sounds;
 
+  // Save to localStorage
+  saveSoundsToLocalStorage(sounds);
+
   // Auto-add first variant to sequencer immediately with all variants
   if (sounds.length > 0) {
     addTrack(sounds[0], audioNodes, params, sounds); // Pass all variants
@@ -1276,7 +1299,11 @@ function startSequencer(audioNodes, params) {
     return;
   }
 
-  if (!params.currentVariants || params.currentVariants.length === 0) {
+  // Check if any tracks have sounds
+  const pattern = params.patterns[params.currentPattern];
+  const hasSounds = pattern && pattern.tracks && pattern.tracks.some(t => t.sound);
+
+  if (!hasSounds) {
     showStatus('✗ Generate sounds first before starting sequencer', 'error');
     return;
   }
@@ -1623,3 +1650,165 @@ function showStatus(message, type = '') {
     }, 3000);
   }
 }
+
+// ============================================================================
+// SOUNDS LIBRARY & PERSISTENCE
+// ============================================================================
+
+function saveSoundsToLocalStorage(sounds) {
+  try {
+    const existing = JSON.parse(localStorage.getItem('ai-drum-sounds') || '[]');
+
+    // Add new sounds, avoid duplicates by ID
+    sounds.forEach(sound => {
+      if (!existing.find(s => s.id === sound.id)) {
+        existing.push({
+          id: sound.id,
+          prompt: sound.prompt,
+          audioData: sound.audioData,
+          variant: sound.variant,
+          timestamp: Date.now()
+        });
+      }
+    });
+
+    localStorage.setItem('ai-drum-sounds', JSON.stringify(existing));
+    updateSoundsLibraryUI();
+    console.log(`[AI Drum] Saved ${existing.length} sounds to localStorage`);
+  } catch (error) {
+    console.error('[AI Drum] Failed to save sounds:', error);
+    if (error.name === 'QuotaExceededError') {
+      showStatus('⚠ Storage full - clearing old sounds', 'error');
+      // Keep only last 20 sounds
+      const existing = JSON.parse(localStorage.getItem('ai-drum-sounds') || '[]');
+      const recent = existing.slice(-20);
+      localStorage.setItem('ai-drum-sounds', JSON.stringify(recent));
+    }
+  }
+}
+
+function loadSoundsFromLocalStorage() {
+  try {
+    const sounds = JSON.parse(localStorage.getItem('ai-drum-sounds') || '[]');
+    console.log(`[AI Drum] Loaded ${sounds.length} sounds from localStorage`);
+    updateSoundsLibraryUI();
+    return sounds;
+  } catch (error) {
+    console.error('[AI Drum] Failed to load sounds:', error);
+    return [];
+  }
+}
+
+function updateSoundsLibraryUI() {
+  const sounds = JSON.parse(localStorage.getItem('ai-drum-sounds') || '[]');
+  const countEl = document.getElementById('ai-sounds-count');
+  const listEl = document.getElementById('ai-sounds-list');
+
+  if (countEl) countEl.textContent = sounds.length;
+
+  if (listEl) {
+    if (sounds.length === 0) {
+      listEl.innerHTML = '<div style="color: #666; text-align: center; padding: 20px;">No sounds generated yet</div>';
+      return;
+    }
+
+    listEl.innerHTML = '';
+
+    // Group by prompt (show only unique prompts)
+    const uniquePrompts = {};
+    sounds.forEach(sound => {
+      if (!uniquePrompts[sound.prompt]) {
+        uniquePrompts[sound.prompt] = [];
+      }
+      uniquePrompts[sound.prompt].push(sound);
+    });
+
+    Object.keys(uniquePrompts).forEach(prompt => {
+      const soundGroup = uniquePrompts[prompt];
+      const div = document.createElement('div');
+      div.style.cssText = 'padding: 10px; margin: 5px 0; background: #0f0f0f; border: 1px solid #222; border-radius: 4px; display: flex; justify-content: space-between; align-items: center;';
+
+      div.innerHTML = `
+        <div>
+          <div style="color: #00ff00; font-size: 13px; margin-bottom: 4px;">${prompt}</div>
+          <div style="color: #666; font-size: 11px;">${soundGroup.length} variant${soundGroup.length > 1 ? 's' : ''}</div>
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <button class="ai-variant-btn" onclick="downloadSound('${soundGroup[0].id}')" style="font-size: 11px; padding: 4px 8px;">⬇ Download</button>
+          <button class="ai-variant-btn" onclick="deleteSound('${soundGroup[0].id}')" style="font-size: 11px; padding: 4px 8px; background: #f44;">✗ Delete</button>
+        </div>
+      `;
+
+      listEl.appendChild(div);
+    });
+  }
+}
+
+function downloadSound(soundId) {
+  try {
+    const sounds = JSON.parse(localStorage.getItem('ai-drum-sounds') || '[]');
+    const sound = sounds.find(s => s.id === soundId);
+
+    if (!sound) {
+      showStatus('✗ Sound not found', 'error');
+      return;
+    }
+
+    // Convert base64 to blob
+    const audioData = atob(sound.audioData);
+    const arrayBuffer = new Uint8Array(audioData.length);
+    for (let i = 0; i < audioData.length; i++) {
+      arrayBuffer[i] = audioData.charCodeAt(i);
+    }
+
+    const blob = new Blob([arrayBuffer], { type: 'audio/mpeg' });
+    const url = URL.createObjectURL(blob);
+
+    // Download
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${sound.prompt.replace(/[^a-z0-9]/gi, '-')}-v${sound.variant}.mp3`;
+    a.click();
+
+    URL.revokeObjectURL(url);
+    showStatus(`✓ Downloaded ${sound.prompt}`, 'success');
+  } catch (error) {
+    console.error('[AI Drum] Download error:', error);
+    showStatus('✗ Download failed', 'error');
+  }
+}
+
+function downloadAllSounds() {
+  try {
+    const sounds = JSON.parse(localStorage.getItem('ai-drum-sounds') || '[]');
+
+    if (sounds.length === 0) {
+      showStatus('No sounds to download', 'error');
+      return;
+    }
+
+    sounds.forEach(sound => downloadSound(sound.id));
+    showStatus(`✓ Downloading ${sounds.length} sounds`, 'success');
+  } catch (error) {
+    console.error('[AI Drum] Download all error:', error);
+    showStatus('✗ Download failed', 'error');
+  }
+}
+
+function deleteSound(soundId) {
+  try {
+    const sounds = JSON.parse(localStorage.getItem('ai-drum-sounds') || '[]');
+    const filtered = sounds.filter(s => s.id !== soundId);
+
+    localStorage.setItem('ai-drum-sounds', JSON.stringify(filtered));
+    updateSoundsLibraryUI();
+    showStatus('✓ Sound deleted', 'success');
+  } catch (error) {
+    console.error('[AI Drum] Delete error:', error);
+    showStatus('✗ Delete failed', 'error');
+  }
+}
+
+// Make functions global for onclick handlers
+window.downloadSound = downloadSound;
+window.deleteSound = deleteSound;
