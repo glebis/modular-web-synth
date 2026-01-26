@@ -501,7 +501,7 @@ class ModuleLoader {
       modulesData.push({
         id: instance.definition.id,
         url: instance.url,
-        state: savedState,
+        state: savedState || {},
         bypassed: instance.bypassed
       });
     });
@@ -552,7 +552,7 @@ class ModuleLoader {
 
         // Apply saved state
         const instance = this.modules.get(moduleData.id);
-        if (instance) {
+        if (instance && moduleData.state) {
           if (instance.definition.state?.load) {
             instance.definition.state.load(instance.params, moduleData.state, instance.audioNodes);
             // Rebind UI if needed
@@ -670,9 +670,14 @@ class SynthesizerCore {
 
     // Keyboard mapping
     this.keyMap = {
-      'a': 'C4', 'w': 'C#4', 's': 'D4', 'e': 'D#4', 'd': 'E4',
-      'f': 'F4', 't': 'F#4', 'g': 'G4', 'y': 'G#4', 'h': 'A4',
-      'u': 'A#4', 'j': 'B4', 'k': 'C5'
+      // Lower octave (C3-C4)
+      'z': 'C3', 's': 'C#3', 'x': 'D3', 'd': 'D#3', 'c': 'E3',
+      'v': 'F3', 'g': 'F#3', 'b': 'G3', 'h': 'G#3', 'n': 'A3',
+      'j': 'A#3', 'm': 'B3',
+      // Middle octave (C4-C5)
+      'q': 'C4', '2': 'C#4', 'w': 'D4', '3': 'D#4', 'e': 'E4',
+      'r': 'F4', '5': 'F#4', 't': 'G4', '6': 'G#4', 'y': 'A4',
+      '7': 'A#4', 'u': 'B4', 'i': 'C5'
     };
   }
 

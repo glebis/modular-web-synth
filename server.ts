@@ -7,7 +7,8 @@ import { query } from '@anthropic-ai/claude-agent-sdk';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const projectRoot = path.join(__dirname, '..'); // Go up from dist/ to project root
+// If running from dist/, go up to project root. Otherwise use current dir.
+const projectRoot = __dirname.endsWith('dist') ? path.join(__dirname, '..') : __dirname;
 
 const app = express();
 const PORT = 5555;
@@ -107,14 +108,17 @@ Categories: effect (delay, reverb), filter (high-pass, resonant), modulation (LF
     }
 
     // Otherwise, handle module creation request
-    const prompt = `Create a Web Audio module for: "${request}"
+    const prompt = `You MUST use the Write tool to create a module file for: "${request}"
 
-STEPS:
-1. Read example module: Read modules/effect-delay.js
-2. Write new module to modules/ directory using Write tool
-3. Respond with JSON only
+CRITICAL INSTRUCTIONS:
+1. Use Read tool to read modules/effect-delay.js as a reference
+2. Use Write tool to save the new module to modules/[your-module-id].js
+3. After writing the file, respond with ONLY this JSON format (no other text):
+{"moduleId":"your-module-id","filename":"your-module-id.js","url":"/modules/your-module-id.js","description":"brief description"}
 
-Module template:
+DO NOT just output code - you MUST use the Write tool to save it to a file.
+
+Module template structure:
 
 \`\`\`javascript
 export default {
@@ -180,13 +184,13 @@ export default {
 }
 \`\`\`
 
-5. MANDATORY: Use Write tool to save the module to modules/ directory
-6. The module MUST be valid ES6 JavaScript with proper Web Audio API usage
-7. Include helpful parameter labels and value displays in the UI
-8. Use the terminal green-on-black aesthetic (colors: #00ff00, #0a0a0a, #1a1a1a)
+Requirements:
+- Valid ES6 JavaScript with proper Web Audio API usage
+- Include helpful parameter labels and value displays in the UI
+- Use the terminal green-on-black aesthetic (colors: #00ff00, #0a0a0a, #1a1a1a)
+- Module ID should be in kebab-case format (e.g., "envelope-follower")
 
-CRITICAL: Use Write tool to save the file, then respond with JSON only:
-{"moduleId":"effect-name","filename":"effect-name.js","url":"/modules/effect-name.js","description":"what it does"}`;
+REMEMBER: You MUST use the Write tool to save the file, then respond with JSON only.`;
 
     // Query Claude using Agent SDK (subscription mode - no API key)
     console.log('[Agent SDK] Starting query to Claude...');
@@ -310,6 +314,151 @@ app.get('/api/modules', async (req, res) => {
 });
 
 /**
+ * POST /api/generate-sound
+ * Generate drum sounds using ElevenLabs Sound Effects API
+ */
+app.post('/api/generate-sound', async (req, res) => {
+  const { prompt, variants = 3 } = req.body;
+
+  if (!prompt || typeof prompt !== 'string') {
+    return res.status(400).json({ error: 'Missing or invalid "prompt" field' });
+  }
+
+  const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
+  if (!ELEVENLABS_API_KEY) {
+    console.warn('[ElevenLabs] API key not found in environment');
+    return res.status(500).json({
+      error: 'ElevenLabs API key not configured',
+      hint: 'Set ELEVENLABS_API_KEY environment variable'
+    });
+  }
+
+  console.log(`\n[ElevenLabs] Generating sound: "${prompt}" (${variants} variants)\n`);
+
+  try {
+    const sounds = [];
+
+    // Generate multiple variants
+    for (let i = 0; i < variants; i++) {
+      console.log(`[ElevenLabs] Generating variant ${i + 1}/${variants}...`);
+
+      const response = await fetch('https://api.elevenlabs.io/v1/sound-generation', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'xi-api-key': ELEVENLABS_API_KEY
+        },
+        body: JSON.stringify({
+          text: prompt,
+          duration_seconds: 1.5, // Short drum hit
+          prompt_influence: 0.7
+        })
+      });
+
+      if (!response.ok) {
+        const error = await response.text();
+        console.error(`[ElevenLabs] API error (variant ${i + 1}):`, error);
+        continue; // Try next variant
+      }
+
+      // Get audio data
+      const audioBuffer = await response.arrayBuffer();
+      const base64Audio = Buffer.from(audioBuffer).toString('base64');
+
+      sounds.push({
+        id: `sound-${Date.now()}-${i}`,
+        prompt,
+        variant: i + 1,
+        audioData: base64Audio,
+        format: 'mp3', // ElevenLabs returns MP3
+        duration: 1.5
+      });
+
+      console.log(`[ElevenLabs] ✓ Variant ${i + 1} generated (${audioBuffer.byteLength} bytes)`);
+    }
+
+    if (sounds.length === 0) {
+      return res.status(500).json({ error: 'Failed to generate any sound variants' });
+    }
+
+    console.log(`[ElevenLabs] ✓ Generated ${sounds.length} variants successfully\n`);
+
+    res.json({
+      prompt,
+      sounds,
+      count: sounds.length
+    });
+
+  } catch (error) {
+    console.error('[ElevenLabs] Generation error:', error);
+    res.status(500).json({
+      error: 'Sound generation failed',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * POST /api/generate-drum-kit
+ * Generate a complete drum kit (kick, snare, hihat, etc.)
+ */
+app.post('/api/generate-drum-kit', async (req, res) => {
+  const { style = 'electronic', variants = 3 } = req.body;
+
+  console.log(`\n[ElevenLabs] Generating ${style} drum kit with ${variants} variants per sound\n`);
+
+  const drumTypes = [
+    { name: 'kick', prompt: `${style} kick drum, deep bass punch` },
+    { name: 'snare', prompt: `${style} snare drum, crisp snap` },
+    { name: 'hihat-closed', prompt: `${style} closed hi-hat, tight metallic` },
+    { name: 'hihat-open', prompt: `${style} open hi-hat, sustained shimmer` },
+    { name: 'clap', prompt: `${style} clap or handclap, sharp attack` }
+  ];
+
+  try {
+    const kit = {};
+
+    for (const drum of drumTypes) {
+      console.log(`[ElevenLabs] Generating ${drum.name}...`);
+
+      // Call individual sound generation endpoint
+      const response = await fetch(`http://localhost:${PORT}/api/generate-sound`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: drum.prompt,
+          variants
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        kit[drum.name] = data.sounds;
+        console.log(`[ElevenLabs] ✓ ${drum.name} generated (${data.sounds.length} variants)`);
+      } else {
+        console.error(`[ElevenLabs] ✗ Failed to generate ${drum.name}`);
+        kit[drum.name] = [];
+      }
+    }
+
+    console.log(`[ElevenLabs] ✓ Drum kit generation complete\n`);
+
+    res.json({
+      style,
+      kit,
+      totalSounds: Object.values(kit).flat().length
+    });
+
+  } catch (error) {
+    console.error('[ElevenLabs] Kit generation error:', error);
+    res.status(500).json({
+      error: 'Drum kit generation failed',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
  * GET /health
  * Health check endpoint
  */
@@ -333,6 +482,8 @@ app.listen(PORT, () => {
 ╠════════════════════════════════════════════╣
 ║  Endpoints:                               ║
 ║  POST /api/generate-module                ║
+║  POST /api/generate-sound  (ElevenLabs)   ║
+║  POST /api/generate-drum-kit              ║
 ║  GET  /api/modules                        ║
 ║  GET  /health                             ║
 ╠════════════════════════════════════════════╣

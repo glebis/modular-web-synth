@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>NexusUI Load Test</title>
+</head>
+<body>
+  <h1>NexusUI Load Test</h1>
+  <div id="status">Loading...</div>
+
+  <script src="./nexusui.min.js"></script>
+  <script>
+    const statusEl = document.getElementById('status');
+
+    if (typeof Nexus !== 'undefined') {
+      statusEl.innerHTML = `
+        <div style="color: green;">
+          ✓ NexusUI loaded successfully!<br>
+          Version: ${Nexus.version || 'unknown'}<br>
+          Available: ${Object.keys(Nexus).length} properties
+        </div>
+      `;
+      console.log('Nexus:', Nexus);
+    } else {
+      statusEl.innerHTML = '<div style="color: red;">✗ NexusUI failed to load</div>';
+    }
+  </script>
+</body>
+</html>

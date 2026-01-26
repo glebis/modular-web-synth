@@ -189,18 +189,20 @@
     /* Hardware-style keyboard */
     .keyboard {
       display: flex;
-      gap: 2px;
-      margin: 16px 0;
+      gap: 1px;
+      margin: 16px auto;
       justify-content: center;
       padding: 12px;
+      overflow-x: auto;
+      max-width: 100%;
       background: linear-gradient(180deg, #0a0a0a 0%, #1a1a1a 100%);
       border-radius: 3px;
       border: 1px solid var(--panel-border);
     }
 
     .key {
-      width: 44px;
-      height: 170px;
+      width: 32px;
+      height: 150px;
       background: linear-gradient(180deg, #f5f5f5 0%, #e0e0e0 100%);
       border: 1px solid #999;
       cursor: pointer;
@@ -234,8 +236,8 @@
     }
 
     .key.black {
-      width: 28px;
-      height: 105px;
+      width: 20px;
+      height: 95px;
       background: linear-gradient(180deg, #2a2a2a 0%, #0a0a0a 100%);
       border: 1px solid #000;
       position: absolute;
@@ -268,10 +270,10 @@
 
     .key-label {
       position: absolute;
-      bottom: 8px;
+      bottom: 6px;
       width: 100%;
       text-align: center;
-      font-size: 9px;
+      font-size: 7px;
       font-family: 'JetBrains Mono', monospace;
       font-weight: 500;
       color: #666;
@@ -1262,8 +1264,16 @@
 
     // === KEYBOARD RENDERING ===
     const keyboard = document.getElementById('keyboard');
-    const whiteNotes = ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4', 'C5'];
-    const blackNotes = ['C#4', 'D#4', null, 'F#4', 'G#4', 'A#4', null];
+    const whiteNotes = [
+      'C3', 'D3', 'E3', 'F3', 'G3', 'A3', 'B3',
+      'C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4',
+      'C5', 'D5', 'E5', 'F5', 'G5', 'A5', 'B5', 'C6'
+    ];
+    const blackNotes = [
+      'C#3', 'D#3', null, 'F#3', 'G#3', 'A#3', null,
+      'C#4', 'D#4', null, 'F#4', 'G#4', 'A#4', null,
+      'C#5', 'D#5', null, 'F#5', 'G#5', 'A#5', null, null
+    ];
 
     whiteNotes.forEach((note, i) => {
       const key = document.createElement('div');
@@ -1349,10 +1359,16 @@
     // === COMPUTER KEYBOARD INPUT ===
     // Map note names to MIDI numbers
     const noteToMIDI = {
+      'C3': 48, 'C#3': 49, 'D3': 50, 'D#3': 51,
+      'E3': 52, 'F3': 53, 'F#3': 54, 'G3': 55,
+      'G#3': 56, 'A3': 57, 'A#3': 58, 'B3': 59,
       'C4': 60, 'C#4': 61, 'D4': 62, 'D#4': 63,
       'E4': 64, 'F4': 65, 'F#4': 66, 'G4': 67,
       'G#4': 68, 'A4': 69, 'A#4': 70, 'B4': 71,
-      'C5': 72
+      'C5': 72, 'C#5': 73, 'D5': 74, 'D#5': 75,
+      'E5': 76, 'F5': 77, 'F#5': 78, 'G5': 79,
+      'G#5': 80, 'A5': 81, 'A#5': 82, 'B5': 83,
+      'C6': 84
     };
 
     window.addEventListener('keydown', (e) => {

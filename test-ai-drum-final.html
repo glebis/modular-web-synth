@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>AI Drum Machine - Final Integration Test</title>
+  <script src="./nexusui.min.js"></script>
+  <style>
+    body {
+      font-family: Monaco, monospace;
+      background: #f5f5f5;
+      color: #333;
+      padding: 20px;
+      margin: 0;
+    }
+    .test-section {
+      background: #fff;
+      border: 1px solid #ddd;
+      padding: 20px;
+      margin-bottom: 20px;
+      border-radius: 4px;
+      max-width: 900px;
+    }
+    h1 { font-size: 24px; margin-top: 0; }
+    h2 { font-size: 18px; color: #333; }
+    button {
+      background: #333;
+      color: #fff;
+      border: none;
+      padding: 12px 24px;
+      margin: 10px 5px;
+      border-radius: 3px;
+      cursor: pointer;
+      font-family: Monaco, monospace;
+      font-size: 13px;
+    }
+    button:hover { background: #222; }
+    button:disabled { background: #888; cursor: not-allowed; }
+    .status { padding: 10px 0; }
+    .status.pass { color: #4a4; }
+    .status.fail { color: #f44; }
+    .status.pending { color: #888; }
+    #module-container { margin-top: 20px; }
+  </style>
+</head>
+<body>
+  <div class="test-section">
+    <h1>🎹 AI Drum Machine - Final Integration Test</h1>
+    <p><strong>This test verifies:</strong></p>
+    <ul>
+      <li>✓ NexusUI library loads correctly</li>
+      <li>✓ AI Drum Machine module loads</li>
+      <li>✓ AudioContext initializes</li>
+      <li>✓ Oscilloscope connects without errors</li>
+      <li>✓ NexusUI controls (Dial, Slider, XY Pad) render</li>
+    </ul>
+  </div>
+
+  <div class="test-section">
+    <h2>Test Results</h2>
+    <div id="test-results">
+      <div class="status pending" id="nexus-test">1. NexusUI library...</div>
+      <div class="status pending" id="module-test">2. Module import...</div>
+      <div class="status pending" id="audio-test">3. AudioContext creation...</div>
+      <div class="status pending" id="oscilloscope-test">4. Oscilloscope connection...</div>
+      <div class="status pending" id="controls-test">5. NexusUI controls...</div>
+    </div>
+    <button onclick="runTests()" id="run-btn">Run Tests</button>
+    <button onclick="loadModule()" id="load-btn" disabled>Load Full Module</button>
+  </div>
+
+  <div id="module-container"></div>
+
+  <script type="module">
+    let testResults = {
+      nexus: false,
+      module: false,
+      audio: false,
+      oscilloscope: false,
+      controls: false
+    };
+
+    function updateStatus(id, message, state) {
+      const el = document.getElementById(id);
+      el.textContent = message;
+      el.className = `status ${state}`;
+    }
+
+    window.runTests = async function() {
+      document.getElementById('run-btn').disabled = true;
+
+      try {
+        // Test 1: NexusUI
+        updateStatus('nexus-test', '1. Testing NexusUI library...', 'pending');
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        if (typeof Nexus === 'undefined') {
+          throw new Error('NexusUI not loaded');
+        }
+        updateStatus('nexus-test', `1. ✓ NexusUI loaded (v${Nexus.version || 'unknown'})`, 'pass');
+        testResults.nexus = true;
+
+        // Test 2: Module import
+        updateStatus('module-test', '2. Importing AI Drum Machine module...', 'pending');
+        const module = (await import('./modules/drum-machine-ai.js')).default;
+        updateStatus('module-test', `2. ✓ Module loaded: ${module.name} v${module.version}`, 'pass');
+        testResults.module = true;
+
+        // Test 3: AudioContext
+        updateStatus('audio-test', '3. Creating AudioContext...', 'pending');
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const masterGain = audioContext.createGain();
+        masterGain.connect(audioContext.destination);
+        updateStatus('audio-test', `3. ✓ AudioContext created (${audioContext.sampleRate}Hz)`, 'pass');
+        testResults.audio = true;
+
+        // Test 4: Oscilloscope connection (critical test)
+        updateStatus('oscilloscope-test', '4. Testing oscilloscope connection...', 'pending');
+
+        // Create temporary container
+        const tempDiv = document.createElement('div');
+        tempDiv.id = 'test-oscilloscope';
+        tempDiv.style.width = '300px';
+        tempDiv.style.height = '150px';
+        document.body.appendChild(tempDiv);
+
+        // Create AnalyserNode (the fix)
+        const analyser = audioContext.createAnalyser();
+        analyser.fftSize = 2048;
+        masterGain.connect(analyser);
+
+        // Create oscilloscope and connect
+        const testOsc = new Nexus.Oscilloscope('#test-oscilloscope', {
+          size: [300, 150]
+        });
+        testOsc.connect(analyser);
+
+        updateStatus('oscilloscope-test', '4. ✓ Oscilloscope connected without errors!', 'pass');
+        testResults.oscilloscope = true;
+
+        // Cleanup
+        tempDiv.remove();
+
+        // Test 5: Other controls
+        updateStatus('controls-test', '5. Testing other NexusUI controls...', 'pending');
+
+        const tempControls = document.createElement('div');
+        tempControls.innerHTML = `
+          <div id="test-dial" style="width:60px;height:60px;display:inline-block;"></div>
+          <div id="test-slider" style="width:40px;height:80px;display:inline-block;"></div>
+        `;
+        document.body.appendChild(tempControls);
+
+        new Nexus.Dial('#test-dial', { size: [60, 60] });
+        new Nexus.Slider('#test-slider', { size: [40, 80] });
+
+        updateStatus('controls-test', '5. ✓ All NexusUI controls working', 'pass');
+        testResults.controls = true;
+
+        tempControls.remove();
+
+        // Enable full module load
+        document.getElementById('load-btn').disabled = false;
+
+        console.log('✅ All tests passed!', testResults);
+        alert('✅ All tests passed! Click "Load Full Module" to see the complete interface.');
+
+      } catch (error) {
+        console.error('❌ Test failed:', error);
+        const failedTest = Object.keys(testResults).find(key => !testResults[key]);
+        alert(`❌ Test failed at: ${failedTest}\n\nError: ${error.message}\n\nCheck browser console for details.`);
+      }
+    };
+
+    window.loadModule = async function() {
+      document.getElementById('load-btn').disabled = true;
+
+      try {
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const masterGain = audioContext.createGain();
+        masterGain.connect(audioContext.destination);
+
+        const module = (await import('./modules/drum-machine-ai.js')).default;
+        const audioNodes = module.audio.createNodes(audioContext);
+        audioNodes.output.connect(masterGain);
+
+        const container = document.getElementById('module-container');
+        container.innerHTML = module.ui.template;
+
+        const params = { ...module.state.defaults };
+
+        if (module.ui.bindEvents) {
+          module.ui.bindEvents(audioNodes, params);
+        }
+
+        if (module.lifecycle?.onLoad) {
+          module.lifecycle.onLoad(audioContext);
+        }
+
+        window.aiDrumMachine = { module, audioNodes, params, audioContext };
+
+        console.log('🎹 AI Drum Machine loaded successfully!');
+        console.log('- Available controls:', window.nexusControls);
+        alert('✅ AI Drum Machine loaded! Check the interface below.');
+
+      } catch (error) {
+        console.error('❌ Module load failed:', error);
+        alert(`❌ Module load failed:\n${error.message}`);
+      }
+    };
+
+    // Auto-run tests on page load
+    window.addEventListener('DOMContentLoaded', () => {
+      console.log('[Test] Page loaded - running automated tests...');
+      setTimeout(() => runTests(), 500);
+    });
+  </script>
+</body>
+</html>

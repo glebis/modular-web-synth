@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>AI Drum Machine Test</title>
+  <script src="./nexusui.min.js"></script>
+  <style>
+    body {
+      font-family: Monaco, monospace;
+      background: #f5f5f5;
+      color: #333;
+      padding: 20px;
+      margin: 0;
+    }
+    #instructions {
+      background: #fff;
+      border: 1px solid #ddd;
+      padding: 20px;
+      margin-bottom: 20px;
+      border-radius: 4px;
+      max-width: 800px;
+    }
+    #instructions h2 { margin-top: 0; color: #333; font-size: 18px; }
+    button {
+      background: #333;
+      color: #fff;
+      border: none;
+      padding: 12px 24px;
+      margin: 10px 5px;
+      border-radius: 3px;
+      cursor: pointer;
+      font-family: Monaco, monospace;
+      font-size: 13px;
+    }
+    button:hover { background: #222; }
+    #status {
+      margin: 20px 0;
+      padding: 15px;
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      max-width: 800px;
+    }
+    .step { padding: 5px 0; color: #888; }
+    .step.done { color: #4a4; }
+    .step.error { color: #f44; }
+    #custom-controls {
+      margin-top: 30px;
+    }
+  </style>
+</head>
+<body>
+  <div style="display: flex; justify-content: space-between; align-items: center; max-width: 900px; margin-bottom: 10px;">
+    <h1 style="margin: 0;">AI Drum Machine</h1>
+    <button onclick="loadAIDrumMachine()" style="padding: 8px 16px;">Load Module</button>
+  </div>
+
+  <div id="status" style="max-width: 900px; padding: 10px;">
+    <div class="step" id="step-1">1. Ready</div>
+    <div class="step" id="step-2">2. Audio context...</div>
+    <div class="step" id="step-3">3. NexusUI...</div>
+    <div class="step" id="step-4">4. Oscilloscope...</div>
+  </div>
+
+  <div id="custom-controls"></div>
+
+  <details style="max-width: 900px; margin-top: 30px; padding: 15px; background: #fff; border: 1px solid #ddd; border-radius: 4px;">
+    <summary style="cursor: pointer; font-weight: bold; margin-bottom: 10px;">📖 Instructions & Features</summary>
+    <p><strong>Features:</strong></p>
+    <ul style="font-size: 12px; line-height: 1.6;">
+      <li>Large Oscilloscope (600×300px) - Real-time audio visualization</li>
+      <li>XY Morph Pad (500×500px) - Blend 3 AI-generated variants by moving the pad</li>
+      <li>NexusUI Controls - BPM dial, volume slider with smooth animations</li>
+      <li>Step Sequencer - 16 steps per track, 4 tracks</li>
+      <li>ElevenLabs Integration - Generate sounds from text descriptions</li>
+    </ul>
+    <p><strong>Quick Start:</strong></p>
+    <ol style="font-size: 12px; line-height: 1.6;">
+      <li>Click "Load Module" to initialize</li>
+      <li>Enter a sound description (e.g., "deep 808 kick", "trap snare")</li>
+      <li>Click "Generate 3 Variants" (requires API key)</li>
+      <li>Move XY pad to morph between variants - releases to play the blend</li>
+      <li>Click steps in the sequencer to program patterns</li>
+      <li>Click Play to start the sequencer</li>
+    </ol>
+    <p style="font-size: 11px; color: #888;"><strong>Note:</strong> Sound generation requires ELEVENLABS_API_KEY environment variable on server.</p>
+  </details>
+
+  <script type="module">
+    let audioContext = null;
+    let drumModule = null;
+    let audioNodes = null;
+    let params = null;
+
+    function setStep(num, text, state = 'done') {
+      const el = document.getElementById(`step-${num}`);
+      if (el) {
+        el.textContent = text;
+        el.className = `step ${state}`;
+      }
+    }
+
+    window.loadAIDrumMachine = async () => {
+      try {
+        // Verify NexusUI is loaded
+        if (typeof Nexus === 'undefined') {
+          setStep(1, '1. ✗ NexusUI library not loaded!', 'error');
+          alert('NexusUI library failed to load. Check the browser console for errors.');
+          console.error('[Test] Nexus is undefined. Check if nexusui.min.js loaded correctly.');
+          return;
+        }
+
+        console.log('[Test] ✓ NexusUI loaded, version:', Nexus.version || 'unknown');
+        setStep(1, '1. Loading AI Drum Machine module...', '');
+
+        // Create AudioContext
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const masterGain = audioContext.createGain();
+        masterGain.connect(audioContext.destination);
+
+        // Import AI module
+        const module = (await import('./modules/drum-machine-ai.js')).default;
+        drumModule = module;
+
+        setStep(1, `1. ✓ Module loaded: ${module.name} v${module.version}`, 'done');
+
+        // Create audio nodes
+        audioNodes = module.audio.createNodes(audioContext);
+        audioNodes.output.connect(masterGain);
+
+        setStep(2, '2. ✓ Audio context created and connected', 'done');
+
+        // Inject UI
+        const container = document.getElementById('custom-controls');
+        container.innerHTML = module.ui.template;
+
+        // Initialize params
+        params = { ...module.state.defaults };
+
+        // Bind events (NexusUI will initialize here)
+        if (module.ui.bindEvents) {
+          module.ui.bindEvents(audioNodes, params);
+        }
+
+        // Lifecycle
+        if (module.lifecycle?.onLoad) {
+          module.lifecycle.onLoad(audioContext);
+        }
+
+        // Wait for NexusUI to initialize
+        setTimeout(() => {
+          if (window.nexusControls) {
+            setStep(3, '3. ✓ NexusUI controls initialized (dial, slider, oscilloscope)', 'done');
+
+            // Check if oscilloscope is visible
+            const oscElement = document.getElementById('ai-oscilloscope');
+            if (oscElement && oscElement.querySelector('canvas')) {
+              setStep(4, '4. ✓ Oscilloscope visible (black canvas, 600×300px)', 'done');
+            } else {
+              setStep(4, '4. ⚠ Oscilloscope element found but no canvas', 'error');
+            }
+          } else {
+            setStep(3, '3. ⚠ NexusUI controls not initialized (check console)', 'error');
+          }
+        }, 1500);
+
+        console.log('[Test] AI Drum Machine loaded successfully!');
+        console.log('- audioContext:', audioContext);
+        console.log('- params:', params);
+        console.log('- nexusControls:', window.nexusControls);
+
+        // Make available globally
+        window.aiDrumMachine = { module, audioNodes, params, audioContext };
+
+        // Add helpful console message
+        console.log('%c🎹 AI Drum Machine Ready!', 'color: #4a4; font-size: 16px; font-weight: bold');
+        console.log('%cTry describing a sound:', 'color: #333; font-size: 13px');
+        console.log('  "deep 808 kick with sub bass"');
+        console.log('  "crisp trap snare with short decay"');
+        console.log('  "metallic hi-hat with bright shimmer"');
+        console.log('%cNote: Requires ELEVENLABS_API_KEY to generate sounds', 'color: #888; font-size: 11px');
+
+      } catch (error) {
+        setStep(1, `1. ✗ ERROR: ${error.message}`, 'error');
+        console.error('[Test] Load error:', error);
+      }
+    };
+
+    // Auto-load on page load
+    window.addEventListener('DOMContentLoaded', () => {
+      console.log('[Test] Page loaded - click "Load AI Drum Machine" to begin');
+    });
+  </script>
+</body>
+</html>

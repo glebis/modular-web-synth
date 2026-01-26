@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Drum Machine Live Test</title>
+  <style>
+    body {
+      font-family: monospace;
+      background: #0a0a0a;
+      color: #00ff00;
+      padding: 20px;
+    }
+    #instructions {
+      background: #1a1a1a;
+      border: 2px solid #00ff00;
+      padding: 20px;
+      margin-bottom: 20px;
+      border-radius: 8px;
+    }
+    #instructions h2 { margin-top: 0; color: #ffaa00; }
+    #instructions ol { margin-left: 20px; line-height: 1.8; }
+    #instructions code {
+      background: #0f0f0f;
+      padding: 2px 6px;
+      border-radius: 3px;
+      color: #ffaa00;
+    }
+    button {
+      background: #00ff00;
+      color: #0a0a0a;
+      border: none;
+      padding: 12px 24px;
+      margin: 10px 5px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-family: monospace;
+      font-size: 16px;
+      font-weight: bold;
+    }
+    button:hover { background: #ffaa00; }
+    #status {
+      margin: 20px 0;
+      padding: 15px;
+      background: #1a1a1a;
+      border-radius: 4px;
+      border-left: 4px solid #00ff00;
+    }
+    .step { color: #666; margin: 5px 0; }
+    .step.done { color: #00ff00; }
+    .step.error { color: #ff0000; }
+    #custom-controls {
+      margin-top: 30px;
+    }
+  </style>
+</head>
+<body>
+  <div id="instructions">
+    <h2>🎹 Drum Machine Live Test</h2>
+    <ol>
+      <li>Click <code>Load Drum Machine</code> button below</li>
+      <li>Prepare a folder with drum samples (WAV/MP3/OGG files)</li>
+      <li>Drag the folder onto the drop zone</li>
+      <li>Click steps in the grid to program a pattern</li>
+      <li>Click sample names to preview sounds</li>
+      <li>Hit <code>Play</code> to start the sequencer</li>
+      <li>Adjust BPM with the slider</li>
+      <li>Use M (mute) and S (solo) buttons per track</li>
+    </ol>
+  </div>
+
+  <button onclick="loadDrumMachine()">Load Drum Machine</button>
+  <button onclick="createTestPattern()">Create Test Pattern (4-on-floor)</button>
+
+  <div id="status">
+    <div class="step" id="step-1">1. Waiting to load module...</div>
+    <div class="step" id="step-2">2. Audio context not started</div>
+    <div class="step" id="step-3">3. Waiting for samples...</div>
+  </div>
+
+  <div id="custom-controls"></div>
+
+  <script type="module">
+    let audioContext = null;
+    let drumModule = null;
+    let audioNodes = null;
+    let params = null;
+
+    function setStep(num, text, state = 'done') {
+      const el = document.getElementById(`step-${num}`);
+      el.textContent = text;
+      el.className = `step ${state}`;
+    }
+
+    window.loadDrumMachine = async () => {
+      try {
+        setStep(1, '1. Loading module...', '');
+
+        // Create AudioContext
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const masterGain = audioContext.createGain();
+        masterGain.connect(audioContext.destination);
+
+        // Import module
+        const module = (await import('./modules/drum-machine.js')).default;
+        drumModule = module;
+
+        setStep(1, `1. ✓ Module loaded: ${module.name} v${module.version}`, 'done');
+
+        // Create audio nodes
+        audioNodes = module.audio.createNodes(audioContext);
+        audioNodes.output.connect(masterGain);
+
+        setStep(2, '2. ✓ Audio context created and connected', 'done');
+
+        // Inject UI
+        const container = document.getElementById('custom-controls');
+        container.innerHTML = module.ui.template;
+
+        // Initialize params
+        params = { ...module.state.defaults };
+
+        // Bind events
+        if (module.ui.bindEvents) {
+          module.ui.bindEvents(audioNodes, params);
+        }
+
+        // Lifecycle
+        if (module.lifecycle?.onLoad) {
+          module.lifecycle.onLoad(audioContext);
+        }
+
+        setStep(3, '3. Ready! Drop a folder with drum samples above', 'done');
+
+        console.log('[Test] Drum machine loaded and ready');
+        console.log('audioContext:', audioContext);
+        console.log('params:', params);
+
+        // Make available globally
+        window.drumMachine = { module, audioNodes, params, audioContext };
+
+      } catch (error) {
+        setStep(1, `1. ✗ ERROR: ${error.message}`, 'error');
+        console.error(error);
+      }
+    };
+
+    window.createTestPattern = () => {
+      if (!params || !params.patterns || params.patterns[0].tracks.length === 0) {
+        alert('Load samples first!');
+        return;
+      }
+
+      const pattern = params.patterns[0];
+
+      // Create a simple 4-on-floor kick pattern
+      if (pattern.tracks[0]) {
+        pattern.tracks[0].steps = [1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0];
+        console.log('Track 0 (kick): 4-on-floor pattern');
+      }
+
+      // Add hi-hat 8ths
+      if (pattern.tracks[2]) {
+        pattern.tracks[2].steps = [1,0,1,0, 1,0,1,0, 1,0,1,0, 1,0,1,0];
+        console.log('Track 2 (hat): 8th notes');
+      }
+
+      // Add snare on 2 and 4
+      if (pattern.tracks[1]) {
+        pattern.tracks[1].steps = [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0];
+        console.log('Track 1 (snare): backbeat');
+      }
+
+      // Re-render to show changes
+      if (audioNodes && params) {
+        const tracksContainer = document.getElementById('dm-tracks');
+        // Trigger re-render by calling the internal render function
+        console.log('✓ Test pattern created! Press Play to hear it.');
+        alert('Test pattern created! Check the step grid.');
+
+        // Force UI update
+        location.reload();
+      }
+    };
+
+    // Auto-load on page load
+    window.addEventListener('DOMContentLoaded', () => {
+      console.log('[Test] Page loaded - click "Load Drum Machine" to begin');
+    });
+  </script>
+</body>
+</html>

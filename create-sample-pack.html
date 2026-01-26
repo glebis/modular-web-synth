@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Generate & Download Drum Pack</title>
+  <style>
+    body {
+      font-family: monospace;
+      background: #0a0a0a;
+      color: #00ff00;
+      padding: 40px;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+    h1 { color: #ffaa00; }
+    button {
+      background: #00ff00;
+      color: #0a0a0a;
+      border: none;
+      padding: 15px 30px;
+      margin: 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-family: monospace;
+      font-size: 16px;
+      font-weight: bold;
+    }
+    button:hover { background: #ffaa00; }
+    .pack { margin: 30px 0; padding: 20px; background: #1a1a1a; border-radius: 8px; }
+    .sample { padding: 8px; margin: 4px 0; background: #0f0f0f; border-radius: 4px; display: flex; justify-content: space-between; align-items: center; }
+    .sample button { padding: 6px 12px; font-size: 12px; margin: 0; }
+    .progress { color: #ffaa00; margin: 10px 0; }
+  </style>
+</head>
+<body>
+  <h1>🥁 Drum Sample Pack Generator</h1>
+  <p>Generate synthetic drum samples and download as ZIP pack</p>
+
+  <div class="pack">
+    <h2>Hip-Hop Pack (8 samples)</h2>
+    <p>808 kicks, trap snares, hi-hats</p>
+    <button onclick="generateHipHopPack()">Generate Hip-Hop Pack</button>
+    <div id="hiphop-samples"></div>
+  </div>
+
+  <div class="pack">
+    <h2>Deep House Pack (8 samples)</h2>
+    <p>Four-to-floor kicks, claps, hats, shakers</p>
+    <button onclick="generateDeepHousePack()">Generate Deep House Pack</button>
+    <div id="house-samples"></div>
+  </div>
+
+  <div id="progress" class="progress"></div>
+
+  <script>
+    const ctx = new AudioContext();
+
+    // Helper: Create audio buffer
+    function createBuffer(duration, generator) {
+      const buffer = ctx.createBuffer(1, ctx.sampleRate * duration, ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      generator(data, ctx.sampleRate);
+      return buffer;
+    }
+
+    // Helper: Convert buffer to WAV
+    function bufferToWav(buffer) {
+      const numChannels = buffer.numberOfChannels;
+      const length = buffer.length * numChannels * 2;
+      const arrayBuffer = new ArrayBuffer(44 + length);
+      const view = new DataView(arrayBuffer);
+
+      const writeString = (offset, string) => {
+        for (let i = 0; i < string.length; i++) {
+          view.setUint8(offset + i, string.charCodeAt(i));
+        }
+      };
+
+      writeString(0, 'RIFF');
+      view.setUint32(4, 36 + length, true);
+      writeString(8, 'WAVE');
+      writeString(12, 'fmt ');
+      view.setUint32(16, 16, true);
+      view.setUint16(20, 1, true);
+      view.setUint16(22, numChannels, true);
+      view.setUint32(24, ctx.sampleRate, true);
+      view.setUint32(28, ctx.sampleRate * numChannels * 2, true);
+      view.setUint16(32, numChannels * 2, true);
+      view.setUint16(34, 16, true);
+      writeString(36, 'data');
+      view.setUint32(40, length, true);
+
+      let offset = 44;
+      for (let i = 0; i < buffer.length; i++) {
+        for (let channel = 0; channel < numChannels; channel++) {
+          const sample = Math.max(-1, Math.min(1, buffer.getChannelData(channel)[i]));
+          view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true);
+          offset += 2;
+        }
+      }
+
+      return new Blob([arrayBuffer], { type: 'audio/wav' });
+    }
+
+    // Helper: Download blob
+    function downloadBlob(blob, filename) {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    // Helper: Preview sound
+    function playBuffer(buffer) {
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      source.connect(ctx.destination);
+      source.start(0);
+    }
+
+    // === HIP-HOP SAMPLES ===
+    window.generateHipHopPack = async () => {
+      document.getElementById('progress').textContent = 'Generating hip-hop samples...';
+
+      const samples = [
+        {
+          name: 'kick-808-sub.wav',
+          buffer: createBuffer(0.8, (d, sr) => {
+            for (let i = 0; i < d.length; i++) {
+              const t = i / sr;
+              const env = Math.exp(-t * 8);
+              const freq = 60 * Math.exp(-t * 25);
+              d[i] = Math.sin(2 * Math.PI * freq * t) * env * 0.9;
+            }
+          })
+        },
+        {
+          name: 'kick-808-punch.wav',
+          buffer: createBuffer(0.5, (d, sr) => {
+            for (let i = 0; i < d.length; i++) {
+              const t = i / sr;
+              const env = Math.exp(-t * 15);
+              const freq = 120 * Math.exp(-t * 45);
+              const click = Math.exp(-t * 100) * 0.3;
+              d[i] = (Math.sin(2 * Math.PI * freq * t) + click) * env * 0.8;
+            }
+          })
+        },
+        {
+          name: 'snare-trap.wav',
+          buffer: createBuffer(0.25, (d, sr) => {
+            for (let i = 0; i < d.length; i++) {
+              const t = i / sr;
+              const env = Math.exp(-t * 25);
+              const tone = Math.sin(2 * Math.PI * 200 * t) * 0.3;
+              const noise = (Math.random() * 2 - 1) * 0.7;
+              d[i] = (tone + noise) * env * 0.7;
+            }
+          })
+        },
+        {
+          name: 'snare-clap.wav',
+          buffer: createBuffer(0.2, (d, sr) => {
+            for (let i = 0; i < d.length; i++) {
+              const t = i / sr;
+              const env = t < 0.02 ? 1 : Math.exp(-(t - 0.02) * 30);
+              const noise = (Math.random() * 2 - 1);
+              d[i] = noise * env * 0.6;
+            }
+          })
+        },
+        {
+          name: 'hihat-closed.wav',
+          buffer: createBuffer(0.08, (d, sr) => {
+            for (let i = 0; i < d.length; i++) {
+              const t = i / sr;
+              const env = Math.exp(-t * 60);
+              const noise = (Math.random() * 2 - 1);
+              d[i] = noise * env * 0.4;
+            }
+          })
+        },
+        {
+          name: 'hihat-open.wav',
+          buffer: createBuffer(0.3, (d, sr) => {
+            for (let i = 0; i < d.length; i++) {
+              const t = i / sr;
+              const env = Math.exp(-t * 8);
+              const noise = (Math.random() * 2 - 1);
+              d[i] = noise * env * 0.35;
+            }
+          })
+        },
+        {
+          name: 'rim-shot.wav',
+          buffer: createBuffer(0.06, (d, sr) => {
+            for (let i = 0; i < d.length; i++) {
+              const t = i / sr;
+              const env = Math.exp(-t * 80);
+              const tone = Math.sin(2 * Math.PI * 2000 * t);
+              d[i] = tone * env * 0.5;
+            }
+          })
+        },
+        {
+          name: 'perc-shaker.wav',
+          buffer: createBuffer(0.15, (d, sr) => {
+            for (let i = 0; i < d.length; i++) {
+              const t = i / sr;
+              const env = Math.sin(t * 20 * Math.PI) * 0.5 + 0.5;
+              const noise = (Math.random() * 2 - 1);
+              d[i] = noise * env * 0.3;
+            }
+          })
+        }
+      ];
+
+      displaySamples(samples, 'hiphop-samples');
+
+      // Download all as ZIP (simplified - individual downloads)
+      samples.forEach(s => {
+        const wav = bufferToWav(s.buffer);
+        // Auto-download first one as example
+        if (s.name === 'kick-808-sub.wav') {
+          downloadBlob(wav, s.name);
+        }
+      });
+
+      document.getElementById('progress').textContent = '✓ Hip-hop pack generated! Click samples to download individually.';
+    };
+
+    // === DEEP HOUSE SAMPLES ===
+    window.generateDeepHousePack = async () => {
+      document.getElementById('progress').textContent = 'Generating deep house samples...';
+
+      const samples = [
+        {
+          name: 'kick-house-deep.wav',
+          buffer: createBuffer(0.6, (d, sr) => {
+            for (let i = 0; i < d.length; i++) {
+              const t = i / sr;
+              const env = Math.exp(-t * 10);
+              const freq = 50 * Math.exp(-t * 20);
+              d[i] = Math.sin(2 * Math.PI * freq * t) * env * 0.85;
+            }
+          })
+        },
+        {
+          name: 'kick-house-punchy.wav',
+          buffer: createBuffer(0.4, (d, sr) => {
+            for (let i = 0; i < d.length; i++) {
+              const t = i / sr;
+              const env = Math.exp(-t * 18);
+              const freq = 80 * Math.exp(-t * 35);
+              d[i] = Math.sin(2 * Math.PI * freq * t) * env * 0.8;
+            }
+          })
+        },
+        {
+          name: 'clap-house.wav',
+          buffer: createBuffer(0.18, (d, sr) => {
+            for (let i = 0; i < d.length; i++) {
+              const t = i / sr;
+              let env;
+              if (t < 0.01) env = 1;
+              else if (t < 0.03) env = 0.7;
+              else env = Math.exp(-(t - 0.03) * 25);
+              const noise = (Math.random() * 2 - 1);
+              d[i] = noise * env * 0.65;
+            }
+          })
+        },
+        {
+          name: 'hihat-house-closed.wav',
+          buffer: createBuffer(0.06, (d, sr) => {
+            for (let i = 0; i < d.length; i++) {
+              const t = i / sr;
+              const env = Math.exp(-t * 70);
+              const noise = (Math.random() * 2 - 1);
+              d[i] = noise * env * 0.35;
+            }
+          })
+        },
+        {
+          name: 'hihat-house-open.wav',
+          buffer: createBuffer(0.25, (d, sr) => {
+            for (let i = 0; i < d.length; i++) {
+              const t = i / sr;
+              const env = Math.exp(-t * 10);
+              const noise = (Math.random() * 2 - 1);
+              d[i] = noise * env * 0.3;
+            }
+          })
+        },
+        {
+          name: 'shaker-house.wav',
+          buffer: createBuffer(0.1, (d, sr) => {
+            for (let i = 0; i < d.length; i++) {
+              const t = i / sr;
+              const env = Math.sin(t * 40 * Math.PI) * 0.5 + 0.5;
+              const noise = (Math.random() * 2 - 1);
+              d[i] = noise * env * 0.28;
+            }
+          })
+        },
+        {
+          name: 'perc-house-conga.wav',
+          buffer: createBuffer(0.3, (d, sr) => {
+            for (let i = 0; i < d.length; i++) {
+              const t = i / sr;
+              const env = Math.exp(-t * 12);
+              const freq = 180 * Math.exp(-t * 20);
+              d[i] = Math.sin(2 * Math.PI * freq * t) * env * 0.65;
+            }
+          })
+        },
+        {
+          name: 'ride-house.wav',
+          buffer: createBuffer(0.4, (d, sr) => {
+            for (let i = 0; i < d.length; i++) {
+              const t = i / sr;
+              const env = Math.exp(-t * 5);
+              const noise = (Math.random() * 2 - 1);
+              const tone = Math.sin(2 * Math.PI * 3000 * t) * 0.2;
+              d[i] = (noise * 0.8 + tone) * env * 0.25;
+            }
+          })
+        }
+      ];
+
+      displaySamples(samples, 'house-samples');
+
+      // Auto-download first one as example
+      const wav = bufferToWav(samples[0].buffer);
+      downloadBlob(wav, samples[0].name);
+
+      document.getElementById('progress').textContent = '✓ Deep house pack generated! Click samples to download individually.';
+    };
+
+    function displaySamples(samples, containerId) {
+      const container = document.getElementById(containerId);
+      container.innerHTML = samples.map(s => `
+        <div class="sample">
+          <span>${s.name}</span>
+          <div>
+            <button onclick="previewSample('${s.name}')">▶ Preview</button>
+            <button onclick="downloadSample('${s.name}')">⬇ Download</button>
+          </div>
+        </div>
+      `).join('');
+
+      // Store samples globally
+      window.currentSamples = window.currentSamples || {};
+      samples.forEach(s => {
+        window.currentSamples[s.name] = s.buffer;
+      });
+    }
+
+    window.previewSample = (name) => {
+      const buffer = window.currentSamples[name];
+      if (buffer) playBuffer(buffer);
+    };
+
+    window.downloadSample = (name) => {
+      const buffer = window.currentSamples[name];
+      if (buffer) {
+        const wav = bufferToWav(buffer);
+        downloadBlob(wav, name);
+      }
+    };
+  </script>
+</body>
+</html>

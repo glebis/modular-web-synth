@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Drum Machine Module Test</title>
+  <style>
+    body {
+      font-family: monospace;
+      background: #0a0a0a;
+      color: #00ff00;
+      padding: 20px;
+    }
+    .test-result {
+      margin: 10px 0;
+      padding: 10px;
+      border: 1px solid #333;
+      border-radius: 4px;
+    }
+    .pass { border-color: #00ff00; background: rgba(0,255,0,0.1); }
+    .fail { border-color: #ff0000; background: rgba(255,0,0,0.1); }
+    button {
+      background: #00ff00;
+      color: #0a0a0a;
+      border: none;
+      padding: 10px 20px;
+      margin: 5px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-family: monospace;
+      font-size: 14px;
+    }
+    button:hover { background: #ffaa00; }
+    #module-container { margin-top: 20px; }
+  </style>
+</head>
+<body>
+  <h1>Drum Machine Module Test</h1>
+
+  <div id="test-results"></div>
+
+  <h2>Manual Tests</h2>
+  <button onclick="testLoadModule()">1. Load Module</button>
+  <button onclick="testIndexedDB()">2. Test IndexedDB</button>
+  <button onclick="testUI()">3. Test UI Elements</button>
+  <button onclick="testParams()">4. Test State Toggling</button>
+
+  <div id="module-container"></div>
+  <div id="custom-controls"></div>
+
+  <script type="module">
+    const results = document.getElementById('test-results');
+    let moduleInstance = null;
+    let audioContext = null;
+    let params = null;
+
+    function log(message, pass = true) {
+      const div = document.createElement('div');
+      div.className = `test-result ${pass ? 'pass' : 'fail'}`;
+      div.textContent = `${pass ? '✓' : '✗'} ${message}`;
+      results.appendChild(div);
+      console.log(message);
+    }
+
+    // Load console test script
+    import('./test-drum-machine-console.js').then(() => {
+      log('Console test script loaded - check browser console');
+    });
+
+    // Test 1: Load Module
+    window.testLoadModule = async () => {
+      try {
+        log('Loading drum-machine module...');
+
+        // Create AudioContext
+        if (!audioContext) {
+          audioContext = new (window.AudioContext || window.webkitAudioContext)();
+          log('AudioContext created');
+        }
+
+        // Import module
+        const module = (await import('./modules/drum-machine.js')).default;
+        log(`Module imported: ${module.name} v${module.version}`);
+
+        // Validate structure
+        const required = ['id', 'name', 'version', 'audio', 'ui', 'state'];
+        for (const field of required) {
+          if (!module[field]) {
+            throw new Error(`Missing field: ${field}`);
+          }
+        }
+        log('Module structure validated');
+
+        // Create audio nodes
+        const masterGain = audioContext.createGain();
+        masterGain.connect(audioContext.destination);
+
+        const audioNodes = module.audio.createNodes(audioContext);
+        if (!audioNodes.input || !audioNodes.output) {
+          throw new Error('Missing input/output nodes');
+        }
+        audioNodes.output.connect(masterGain);
+        log('Audio nodes created and connected');
+
+        // Inject UI
+        const container = document.getElementById('custom-controls');
+        container.innerHTML = module.ui.template;
+        log('UI template injected');
+
+        // Initialize params
+        params = { ...module.state.defaults };
+        log('Params initialized');
+
+        // Bind events
+        if (module.ui.bindEvents) {
+          module.ui.bindEvents(audioNodes, params);
+          log('Event handlers bound');
+        }
+
+        // Call lifecycle
+        if (module.lifecycle?.onLoad) {
+          module.lifecycle.onLoad(audioContext);
+          log('onLoad lifecycle called');
+        }
+
+        moduleInstance = { module, audioNodes, params };
+        log('✓ MODULE LOADED SUCCESSFULLY', true);
+
+      } catch (error) {
+        log(`✗ ERROR: ${error.message}`, false);
+        console.error(error);
+      }
+    };
+
+    // Test 2: IndexedDB
+    window.testIndexedDB = async () => {
+      try {
+        log('Testing IndexedDB...');
+
+        const request = indexedDB.open('drum-machine-samples', 1);
+
+        request.onsuccess = () => {
+          const db = request.result;
+          log('IndexedDB opened successfully');
+
+          if (db.objectStoreNames.contains('samples')) {
+            log('Object store "samples" exists');
+
+            // Test transaction
+            const tx = db.transaction(['samples'], 'readonly');
+            const store = tx.objectStore('samples');
+            const countReq = store.count();
+
+            countReq.onsuccess = () => {
+              log(`Sample count: ${countReq.result}`);
+            };
+          } else {
+            log('Object store "samples" not found', false);
+          }
+        };
+
+        request.onerror = () => {
+          log(`IndexedDB error: ${request.error}`, false);
+        };
+
+      } catch (error) {
+        log(`✗ ERROR: ${error.message}`, false);
+      }
+    };
+
+    // Test 3: UI Elements
+    window.testUI = () => {
+      try {
+        log('Testing UI elements...');
+
+        const elements = [
+          'dm-play',
+          'dm-stop',
+          'dm-bpm',
+          'dm-master',
+          'dm-drop-zone',
+          'dm-sample-browser',
+          'dm-sequencer',
+          'dm-pattern-select'
+        ];
+
+        for (const id of elements) {
+          const el = document.getElementById(id);
+          if (el) {
+            log(`✓ Found element: ${id}`);
+          } else {
+            log(`✗ Missing element: ${id}`, false);
+          }
+        }
+
+        log('✓ UI ELEMENTS TEST COMPLETE', true);
+
+      } catch (error) {
+        log(`✗ ERROR: ${error.message}`, false);
+      }
+    };
+
+    // Test 4: State Toggling
+    window.testParams = () => {
+      try {
+        log('Testing state toggling...');
+
+        if (!params) {
+          log('Module not loaded yet - run Test 1 first', false);
+          return;
+        }
+
+        // Toggle BPM
+        const oldBPM = params.bpm;
+        params.bpm = 140;
+        log(`BPM: ${oldBPM} → ${params.bpm}`);
+
+        // Toggle master volume
+        const oldVol = params.masterVolume;
+        params.masterVolume = 0.5;
+        log(`Master Volume: ${oldVol} → ${params.masterVolume}`);
+
+        // Toggle playing state
+        params.playing = !params.playing;
+        log(`Playing: ${!params.playing} → ${params.playing}`);
+
+        // Add a test pattern
+        params.patterns.push({
+          id: 'test-pattern',
+          name: 'Test Pattern',
+          length: 8,
+          tracks: []
+        });
+        log(`Patterns: ${params.patterns.length - 1} → ${params.patterns.length}`);
+
+        // Toggle current pattern
+        params.currentPattern = 1;
+        log(`Current Pattern: 0 → ${params.currentPattern}`);
+
+        // Add test sample
+        params.samples.push({
+          id: 'test-sample-1',
+          name: 'Test Kick',
+          category: 'kick',
+          bufferId: 'test-kick-1',
+          volume: 0.8,
+          pan: 0,
+          pitch: 0
+        });
+        log(`Samples: ${params.samples.length - 1} → ${params.samples.length}`);
+
+        log('✓ STATE TOGGLING TEST COMPLETE', true);
+        console.log('Final params:', params);
+
+      } catch (error) {
+        log(`✗ ERROR: ${error.message}`, false);
+      }
+    };
+
+    // Auto-run basic tests on load
+    window.addEventListener('DOMContentLoaded', async () => {
+      log('Test page loaded - auto-running tests...');
+
+      // Wait a moment for everything to load
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Auto-run all tests
+      await testLoadModule();
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      await testIndexedDB();
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      testUI();
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      testParams();
+
+      log('=== ALL TESTS COMPLETE ===');
+      log('Check console for detailed output');
+    });
+  </script>
+</body>
+</html>
