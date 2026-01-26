@@ -700,6 +700,11 @@ export default {
               <div id="ai-bpm-dial" style="width: 60px; height: 60px;"></div>
               <span id="ai-bpm-value" class="ai-bpm-value">120</span>
             </div>
+            <div class="ai-bpm-control">
+              <span class="ai-bpm-label">Swing</span>
+              <input type="range" id="ai-swing-slider" min="0" max="75" value="0" style="width: 100px; height: 20px;">
+              <span id="ai-swing-value" class="ai-bpm-value">0%</span>
+            </div>
           </div>
           <div id="ai-track-list" class="ai-track-list">
             <div style="color: #666; text-align: center; padding: 40px;">
@@ -866,9 +871,10 @@ function bindAIControls(audioNodes, params) {
     stopSequencer();
   });
 
-  document.getElementById('ai-stop').addEventListener('click', () => {
-    // TODO: Implement stop
-    console.log('[AI Drum] Stop clicked');
+  // Swing control
+  document.getElementById('ai-swing-slider').addEventListener('input', (e) => {
+    params.swing = parseInt(e.target.value);
+    document.getElementById('ai-swing-value').textContent = params.swing + '%';
   });
 }
 
@@ -1302,13 +1308,20 @@ function startSequencer(audioNodes, params) {
     // Highlight current step
     highlightStep(currentStep);
 
+    // Check if any tracks are soloed
+    const hasSoloedTracks = pattern.tracks.some(t => t.solo);
+
     // Play active tracks on this step (with per-track length)
     pattern.tracks.forEach((track, trackIndex) => {
       // Calculate track-specific step (respects individual track length)
       const trackLength = track.length || 16; // Default to 16 if not set
       const trackStep = currentStep % trackLength;
 
-      if (!track.mute && track.steps[trackStep] === 1 && track.sound) {
+      // Solo logic: if ANY track is soloed, only play soloed tracks
+      // Otherwise, respect mute status
+      const shouldPlay = hasSoloedTracks ? track.solo : !track.mute;
+
+      if (shouldPlay && track.steps[trackStep] === 1 && track.sound) {
         // Apply swing if enabled (delay even steps slightly)
         const swingAmount = params.swing || 0;
         const isEvenStep = trackStep % 2 === 1;
@@ -1565,6 +1578,12 @@ function renderTracks(audioNodes, params) {
     muteBtn.addEventListener('click', () => {
       track.mute = !track.mute;
       muteBtn.classList.toggle('active');
+
+      // Update pattern track
+      const pattern = params.patterns[params.currentPattern];
+      if (pattern && pattern.tracks[trackIndex]) {
+        pattern.tracks[trackIndex].mute = track.mute;
+      }
     });
 
     const soloBtn = document.createElement('button');
@@ -1574,6 +1593,12 @@ function renderTracks(audioNodes, params) {
     soloBtn.addEventListener('click', () => {
       track.solo = !track.solo;
       soloBtn.classList.toggle('active');
+
+      // Update pattern track
+      const pattern = params.patterns[params.currentPattern];
+      if (pattern && pattern.tracks[trackIndex]) {
+        pattern.tracks[trackIndex].solo = track.solo;
+      }
     });
 
     controls.appendChild(muteBtn);
