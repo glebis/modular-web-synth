@@ -713,21 +713,38 @@ export default {
           </div>
         </div>
 
-        <details class="ai-sounds-library" style="margin-top: 20px;">
-          <summary style="cursor: pointer; padding: 15px; background: #0f0f0f; border: 1px solid #222; border-radius: 6px; color: #00ff00; font-size: 14px;">
-            📦 Sounds Library (<span id="ai-sounds-count">0</span> sounds)
-          </summary>
-          <div id="ai-sounds-list" style="padding: 15px; background: #0a0a0a; border: 1px solid #222; border-top: none; border-radius: 0 0 6px 6px;">
-            <div style="color: #666; text-align: center; padding: 20px;">No sounds generated yet</div>
-          </div>
-          <div style="padding: 10px; background: #0f0f0f; border: 1px solid #222; border-top: none; border-radius: 0 0 6px 6px;">
-            <button id="ai-download-all" class="ai-generate-btn" style="width: 100%;">⬇ Download All Sounds</button>
-          </div>
-        </details>
+        <div style="margin-top: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+          <details class="ai-sounds-library">
+            <summary style="cursor: pointer; padding: 15px; background: #0f0f0f; border: 1px solid #222; border-radius: 6px; color: #00ff00; font-size: 14px;">
+              📦 Sounds Library (<span id="ai-sounds-count">0</span>)
+            </summary>
+            <div id="ai-sounds-list" style="padding: 15px; background: #0a0a0a; border: 1px solid #222; border-top: none;">
+              <div style="color: #666; text-align: center; padding: 20px;">No sounds yet</div>
+            </div>
+            <div style="padding: 10px; background: #0f0f0f; border: 1px solid #222; border-top: none; border-radius: 0 0 6px 6px;">
+              <button id="ai-download-all" class="ai-generate-btn" style="width: 100%; font-size: 12px;">⬇ Download All</button>
+            </div>
+          </details>
+
+          <details class="ai-presets-library">
+            <summary style="cursor: pointer; padding: 15px; background: #0f0f0f; border: 1px solid #222; border-radius: 6px; color: #ffaa00; font-size: 14px;">
+              💾 Presets (<span id="ai-presets-count">0</span>)
+            </summary>
+            <div style="padding: 15px; background: #0a0a0a; border: 1px solid #222; border-top: none;">
+              <div id="ai-presets-list" style="max-height: 300px; overflow-y: auto;">
+                <div style="color: #666; text-align: center; padding: 20px;">No presets saved</div>
+              </div>
+            </div>
+            <div style="padding: 10px; background: #0f0f0f; border: 1px solid #222; border-top: none; border-radius: 0 0 6px 6px;">
+              <button id="ai-save-preset" class="ai-generate-btn" style="width: 100%; font-size: 12px;">💾 Save Current Preset</button>
+            </div>
+          </details>
+        </div>
       </div>
     `,
     bindEvents: (audioNodes, params) => {
       window.aiDrumAudioNodes = audioNodes;
+      window.aiDrumMachine = { audioNodes, params };
       bindAIControls(audioNodes, params);
     }
   },
@@ -894,8 +911,16 @@ function bindAIControls(audioNodes, params) {
     downloadAllSounds();
   });
 
-  // Load saved sounds on init
+  // Save preset
+  document.getElementById('ai-save-preset').addEventListener('click', () => {
+    // Prompt for custom name (optional)
+    const customName = prompt('Preset name (leave empty for auto-generated):');
+    savePreset(audioNodes, params, customName?.trim() || null);
+  });
+
+  // Load saved sounds and presets on init
   loadSoundsFromLocalStorage();
+  updatePresetsUI();
 }
 
 function initializeNexusControls(audioNodes, params, retryCount = 0) {
@@ -1812,3 +1837,222 @@ function deleteSound(soundId) {
 // Make functions global for onclick handlers
 window.downloadSound = downloadSound;
 window.deleteSound = deleteSound;
+
+// ============================================================================
+// PRESETS
+// ============================================================================
+
+function generatePresetName(params) {
+  // Generate descriptive name based on content
+  const tracks = params.tracks.filter(t => t.sound);
+
+  if (tracks.length === 0) {
+    return `Empty ${new Date().toLocaleTimeString()}`;
+  }
+
+  // Detect kit style from prompts
+  let style = null;
+  const allPrompts = tracks.map(t => t.prompt.toLowerCase()).join(' ');
+
+  if (allPrompts.includes('808')) style = '808';
+  else if (allPrompts.includes('trap')) style = 'Trap';
+  else if (allPrompts.includes('house')) style = 'House';
+  else if (allPrompts.includes('techno')) style = 'Techno';
+  else if (allPrompts.includes('dnb') || allPrompts.includes('drum and bass')) style = 'DnB';
+  else if (allPrompts.includes('lofi') || allPrompts.includes('lo-fi')) style = 'Lo-Fi';
+  else if (allPrompts.includes('acoustic')) style = 'Acoustic';
+  else if (allPrompts.includes('industrial')) style = 'Industrial';
+
+  // Count active steps per track
+  let totalSteps = 0;
+  const pattern = params.patterns[params.currentPattern];
+  pattern.tracks.forEach(t => {
+    totalSteps += t.steps.filter(s => s === 1).length;
+  });
+
+  // Classify pattern complexity
+  const density = totalSteps === 0 ? 'empty' :
+                  totalSteps > 30 ? 'heavy' :
+                  totalSteps > 20 ? 'full' :
+                  totalSteps > 10 ? 'medium' : 'sparse';
+
+  // Build name
+  const bpm = params.bpm;
+  const swing = params.swing > 0 ? ` sw${params.swing}%` : '';
+
+  if (style) {
+    return `${style} ${density} ${bpm}bpm${swing}`;
+  } else {
+    // Generic name with track count
+    return `${tracks.length}trk ${density} ${bpm}bpm${swing}`;
+  }
+}
+
+function savePreset(audioNodes, params, customName = null) {
+  try {
+    const presetName = customName || generatePresetName(params);
+
+    const preset = {
+      id: Date.now().toString(),
+      name: presetName,
+      timestamp: Date.now(),
+      bpm: params.bpm,
+      swing: params.swing,
+      masterVolume: params.masterVolume,
+      tracks: params.tracks.map(t => ({
+        soundId: t.soundId,
+        sound: t.sound,
+        variants: t.variants,
+        selectedVariant: t.selectedVariant,
+        prompt: t.prompt,
+        steps: [...t.steps],
+        length: t.length,
+        volume: t.volume,
+        mute: t.mute,
+        solo: t.solo
+      })),
+      patterns: params.patterns.map(p => ({
+        id: p.id,
+        name: p.name,
+        length: p.length,
+        tracks: p.tracks.map(t => ({
+          sampleId: t.sampleId,
+          sound: t.sound,
+          variants: t.variants,
+          selectedVariant: t.selectedVariant,
+          steps: [...t.steps],
+          length: t.length,
+          mute: t.mute,
+          solo: t.solo,
+          volume: t.volume
+        }))
+      })),
+      currentPattern: params.currentPattern
+    };
+
+    // Save to localStorage
+    const presets = JSON.parse(localStorage.getItem('ai-drum-presets') || '[]');
+    presets.push(preset);
+    localStorage.setItem('ai-drum-presets', JSON.stringify(presets));
+
+    updatePresetsUI();
+    showStatus(`✓ Preset saved: "${presetName}"`, 'success');
+    console.log('[AI Drum] Preset saved:', presetName);
+
+    return preset;
+  } catch (error) {
+    console.error('[AI Drum] Save preset error:', error);
+    showStatus('✗ Failed to save preset', 'error');
+  }
+}
+
+function loadPreset(presetId, audioNodes, params) {
+  try {
+    const presets = JSON.parse(localStorage.getItem('ai-drum-presets') || '[]');
+    const preset = presets.find(p => p.id === presetId);
+
+    if (!preset) {
+      showStatus('✗ Preset not found', 'error');
+      return;
+    }
+
+    // Load all preset data into params
+    params.bpm = preset.bpm;
+    params.swing = preset.swing;
+    params.masterVolume = preset.masterVolume;
+    params.tracks = preset.tracks.map(t => ({...t}));
+    params.patterns = preset.patterns.map(p => ({
+      ...p,
+      tracks: p.tracks.map(t => ({...t}))
+    }));
+    params.currentPattern = preset.currentPattern || 0;
+
+    // Update UI
+    document.getElementById('ai-bpm-value').textContent = params.bpm;
+    document.getElementById('ai-swing-value').textContent = params.swing + '%';
+    document.getElementById('ai-swing-slider').value = params.swing;
+
+    // Update BPM dial if it exists
+    if (window.nexusControls && window.nexusControls.bpmDial) {
+      window.nexusControls.bpmDial.value = params.bpm;
+    }
+
+    // Re-render tracks
+    renderTracks(audioNodes, params);
+
+    showStatus(`✓ Loaded: "${preset.name}"`, 'success');
+    console.log('[AI Drum] Preset loaded:', preset.name);
+  } catch (error) {
+    console.error('[AI Drum] Load preset error:', error);
+    showStatus('✗ Failed to load preset', 'error');
+  }
+}
+
+function deletePreset(presetId) {
+  try {
+    const presets = JSON.parse(localStorage.getItem('ai-drum-presets') || '[]');
+    const filtered = presets.filter(p => p.id !== presetId);
+
+    localStorage.setItem('ai-drum-presets', JSON.stringify(filtered));
+    updatePresetsUI();
+    showStatus('✓ Preset deleted', 'success');
+  } catch (error) {
+    console.error('[AI Drum] Delete preset error:', error);
+    showStatus('✗ Delete failed', 'error');
+  }
+}
+
+function updatePresetsUI() {
+  const presets = JSON.parse(localStorage.getItem('ai-drum-presets') || '[]');
+  const countEl = document.getElementById('ai-presets-count');
+  const listEl = document.getElementById('ai-presets-list');
+
+  if (countEl) countEl.textContent = presets.length;
+
+  if (listEl) {
+    if (presets.length === 0) {
+      listEl.innerHTML = '<div style="color: #666; text-align: center; padding: 20px;">No presets saved</div>';
+      return;
+    }
+
+    listEl.innerHTML = '';
+
+    // Sort by timestamp (newest first)
+    presets.sort((a, b) => b.timestamp - a.timestamp);
+
+    presets.forEach(preset => {
+      const div = document.createElement('div');
+      div.style.cssText = 'padding: 10px; margin: 5px 0; background: #0f0f0f; border: 1px solid #222; border-radius: 4px; cursor: pointer; transition: all 0.2s;';
+
+      const date = new Date(preset.timestamp).toLocaleDateString();
+      const time = new Date(preset.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+      const trackCount = preset.tracks.filter(t => t.sound).length;
+
+      div.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: start;">
+          <div style="flex: 1;" onclick="loadPreset('${preset.id}', window.aiDrumAudioNodes, window.aiDrumMachine.params)">
+            <div style="color: #ffaa00; font-size: 13px; font-weight: 600; margin-bottom: 4px;">${preset.name}</div>
+            <div style="color: #666; font-size: 11px;">${trackCount} tracks • ${preset.bpm} BPM • ${date} ${time}</div>
+          </div>
+          <button onclick="event.stopPropagation(); deletePreset('${preset.id}')" style="background: #f44; color: #fff; border: none; padding: 4px 8px; border-radius: 3px; font-size: 11px; cursor: pointer;">✗</button>
+        </div>
+      `;
+
+      div.addEventListener('mouseenter', () => {
+        div.style.background = '#1a1a1a';
+        div.style.borderColor = '#ffaa00';
+      });
+
+      div.addEventListener('mouseleave', () => {
+        div.style.background = '#0f0f0f';
+        div.style.borderColor = '#222';
+      });
+
+      listEl.appendChild(div);
+    });
+  }
+}
+
+// Make functions global
+window.loadPreset = loadPreset;
+window.deletePreset = deletePreset;
