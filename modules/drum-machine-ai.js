@@ -696,14 +696,12 @@ export default {
             <button id="ai-play" class="ai-transport-btn">▶ Play</button>
             <button id="ai-stop" class="ai-transport-btn">■ Stop</button>
             <div class="ai-bpm-control">
-              <span class="ai-bpm-label">BPM</span>
-              <div id="ai-bpm-dial" style="width: 60px; height: 60px;"></div>
-              <span id="ai-bpm-value" class="ai-bpm-value">120</span>
-            </div>
-            <div class="ai-bpm-control">
               <span class="ai-bpm-label">Swing</span>
-              <input type="range" id="ai-swing-slider" min="0" max="75" value="0" style="width: 100px; height: 20px;">
+              <input type="range" id="ai-swing-slider" min="0" max="75" value="0" style="width: 120px; height: 20px;">
               <span id="ai-swing-value" class="ai-bpm-value">0%</span>
+            </div>
+            <div style="color: #666; font-size: 11px; margin-left: auto;">
+              [Space] Play/Pause
             </div>
           </div>
           <div id="ai-track-list" class="ai-track-list">
@@ -924,6 +922,19 @@ function bindAIControls(audioNodes, params) {
 
   // Render empty tracks on init
   renderTracks(audioNodes, params);
+
+  // Keyboard shortcuts
+  document.addEventListener('keydown', (e) => {
+    // Spacebar: Play/Pause
+    if (e.code === 'Space' && e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
+      e.preventDefault();
+      if (sequencerInterval) {
+        stopSequencer();
+      } else {
+        startSequencer(audioNodes, params);
+      }
+    }
+  });
 }
 
 function initializeNexusControls(audioNodes, params, retryCount = 0) {
@@ -2008,7 +2019,7 @@ function loadPreset(presetId, audioNodes, params) {
     params.currentPattern = preset.currentPattern || 0;
 
     // Update UI
-    document.getElementById('ai-bpm-value').textContent = params.bpm;
+    document.getElementById('ai-bpm-value-viz').textContent = params.bpm;
     document.getElementById('ai-swing-value').textContent = params.swing + '%';
     document.getElementById('ai-swing-slider').value = params.swing;
 
