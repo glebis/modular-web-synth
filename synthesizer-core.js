@@ -22,7 +22,7 @@ class ModuleLoader {
    * Validate module structure against interface spec
    */
   validateModule(module) {
-    const required = ['id', 'name', 'version', 'audio', 'ui', 'state'];
+    const required = ['id', 'name', 'version', 'audio', 'ui'];
     for (const field of required) {
       if (!module[field]) {
         throw new Error(`Module missing required field: ${field}`);
@@ -78,7 +78,7 @@ class ModuleLoader {
       const moduleInstance = {
         definition: module,
         audioNodes,
-        params: { ...module.state.defaults },
+        params: { ...(module.state?.defaults || {}) },
         uiElements: null,
         url: url,  // Store URL for localStorage persistence
         bypassed: false

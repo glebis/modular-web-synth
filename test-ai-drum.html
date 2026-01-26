@@ -52,10 +52,10 @@
 <body>
   <div style="display: flex; justify-content: space-between; align-items: center; max-width: 900px; margin-bottom: 10px;">
     <h1 style="margin: 0;">AI Drum Machine</h1>
-    <button onclick="loadAIDrumMachine()" style="padding: 8px 16px;">Load Module</button>
+    <button onclick="toggleStatus()" style="padding: 6px 12px; font-size: 12px;">Debug Info</button>
   </div>
 
-  <div id="status" style="max-width: 900px; padding: 10px;">
+  <div id="status" style="max-width: 900px; padding: 10px; display: none;">
     <div class="step" id="step-1">1. Ready</div>
     <div class="step" id="step-2">2. Audio context...</div>
     <div class="step" id="step-3">3. NexusUI...</div>
@@ -186,9 +186,16 @@
       }
     };
 
+    // Toggle status visibility
+    window.toggleStatus = function() {
+      const statusEl = document.getElementById('status');
+      statusEl.style.display = statusEl.style.display === 'none' ? 'block' : 'none';
+    };
+
     // Auto-load on page load
     window.addEventListener('DOMContentLoaded', () => {
-      console.log('[Test] Page loaded - click "Load AI Drum Machine" to begin');
+      console.log('[Test] Auto-loading AI Drum Machine...');
+      setTimeout(() => loadAIDrumMachine(), 100);
     });
   </script>
 </body>

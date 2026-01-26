@@ -718,6 +718,7 @@ export default {
   state: {
     defaults: {
       bpm: 120,
+      swing: 0, // 0-75% swing amount
       masterVolume: 0.8,
       mode: 'single',
       generatedSounds: [],
@@ -731,10 +732,10 @@ export default {
           name: 'Pattern A',
           length: 16,
           tracks: [
-            { sampleId: null, steps: Array(16).fill(0), mute: false, solo: false, volume: 0.8 },
-            { sampleId: null, steps: Array(16).fill(0), mute: false, solo: false, volume: 0.8 },
-            { sampleId: null, steps: Array(16).fill(0), mute: false, solo: false, volume: 0.8 },
-            { sampleId: null, steps: Array(16).fill(0), mute: false, solo: false, volume: 0.8 }
+            { sampleId: null, steps: Array(16).fill(0), length: 16, mute: false, solo: false, volume: 0.8 },
+            { sampleId: null, steps: Array(16).fill(0), length: 16, mute: false, solo: false, volume: 0.8 },
+            { sampleId: null, steps: Array(16).fill(0), length: 16, mute: false, solo: false, volume: 0.8 },
+            { sampleId: null, steps: Array(16).fill(0), length: 16, mute: false, solo: false, volume: 0.8 }
           ]
         }
       ]
@@ -1013,7 +1014,21 @@ async function generateDrumKit(style, audioNodes, params) {
     // Store kit data
     params.kitData = data.kit;
 
-    // TODO: Display kit with variant selection UI
+    // Auto-add all sounds to sequencer
+    console.log('[AI Drum] Kit data:', data.kit);
+
+    // Each sound type (kick, snare, etc.) has 3 variants
+    // Add first variant of each to different tracks
+    Object.keys(data.kit).forEach((soundType, index) => {
+      const variants = data.kit[soundType];
+      if (variants && variants.length > 0) {
+        // Add first variant, pass all variants for switching
+        addTrack(variants[0], audioNodes, params, variants);
+        console.log(`[AI Drum] Added ${soundType} to track ${index + 1}`);
+      }
+    });
+
+    showStatus(`✓ Kit loaded: ${Object.keys(data.kit).length} sounds with variants`, 'success');
 
   } catch (error) {
     console.error('[AI Drum] Kit generation error:', error);
@@ -1081,6 +1096,12 @@ function displayVariants(sounds, audioNodes, params) {
 
   // Store sounds for morphing
   params.currentVariants = sounds;
+
+  // Auto-add first variant to sequencer immediately with all variants
+  if (sounds.length > 0) {
+    addTrack(sounds[0], audioNodes, params, sounds); // Pass all variants
+    showStatus(`✓ Added "${sounds[0].prompt}" to sequencer (Variant 1 selected)`, 'success');
+  }
 
   // Also show individual variant selection
   const section = document.getElementById('ai-variants-section');
@@ -1256,8 +1277,11 @@ function startSequencer(audioNodes, params) {
 
   console.log('[AI Drum] Starting sequencer at', params.bpm, 'BPM');
 
-  const stepDuration = (60 / params.bpm) * 1000 / 4; // 16th notes
+  let stepDuration = (60 / params.bpm) * 1000 / 4; // 16th notes
   currentStep = 0;
+
+  // Store timing for swing calculation
+  let lastStepTime = audioNodes.nodes.masterGain.context.currentTime;
 
   // Update play button
   const playBtn = document.getElementById('ai-play');
@@ -1265,6 +1289,9 @@ function startSequencer(audioNodes, params) {
   playBtn.style.background = '#4a4';
 
   sequencerInterval = setInterval(() => {
+    // Recalculate step duration from current BPM (allows real-time changes)
+    stepDuration = (60 / params.bpm) * 1000 / 4;
+
     // Get current pattern
     const pattern = params.patterns[params.currentPattern];
     if (!pattern || !pattern.tracks) {
@@ -1275,15 +1302,26 @@ function startSequencer(audioNodes, params) {
     // Highlight current step
     highlightStep(currentStep);
 
-    // Play active tracks on this step
+    // Play active tracks on this step (with per-track length)
     pattern.tracks.forEach((track, trackIndex) => {
-      if (!track.mute && track.steps[currentStep] === 1 && track.sound) {
-        // Play the sound for this track
-        playVariant(track.sound, audioNodes);
+      // Calculate track-specific step (respects individual track length)
+      const trackLength = track.length || 16; // Default to 16 if not set
+      const trackStep = currentStep % trackLength;
+
+      if (!track.mute && track.steps[trackStep] === 1 && track.sound) {
+        // Apply swing if enabled (delay even steps slightly)
+        const swingAmount = params.swing || 0;
+        const isEvenStep = trackStep % 2 === 1;
+        const swingDelay = isEvenStep ? (stepDuration * swingAmount / 100) : 0;
+
+        // Schedule playback
+        setTimeout(() => {
+          playVariant(track.sound, audioNodes);
+        }, swingDelay);
       }
     });
 
-    // Advance step
+    // Advance step (global counter, tracks loop independently)
     currentStep = (currentStep + 1) % 16;
   }, stepDuration);
 }
@@ -1360,12 +1398,19 @@ function selectVariant(sound, index, audioNodes, params) {
   showStatus(`✓ Added variant ${index + 1} to tracks`, 'success');
 }
 
-function addTrack(sound, audioNodes, params) {
+function addTrack(sound, audioNodes, params, allVariants = null) {
+  // Store all variants if provided (for switching)
+  const variants = allVariants || [sound];
+  const selectedVariant = 0; // Default to first variant
+
   const track = {
     soundId: sound.id,
-    sound: sound, // Store the actual sound object for playback
+    sound: sound, // Current selected sound
+    variants: variants, // All 3 variants
+    selectedVariant: selectedVariant,
     prompt: sound.prompt,
     steps: new Array(16).fill(0),
+    length: 16, // Per-track length
     volume: 0.8,
     mute: false,
     solo: false
@@ -1381,6 +1426,8 @@ function addTrack(sound, audioNodes, params) {
     pattern.tracks[trackIndex] = {
       sampleId: sound.id,
       sound: sound, // Store sound for playback
+      variants: variants,
+      selectedVariant: selectedVariant,
       steps: new Array(16).fill(0),
       mute: false,
       solo: false,
@@ -1409,11 +1456,77 @@ function renderTracks(audioNodes, params) {
     const trackDiv = document.createElement('div');
     trackDiv.className = 'ai-track';
 
-    // Label
+    // Label with variant selector and morph button
+    const labelContainer = document.createElement('div');
+    labelContainer.style.cssText = 'display: flex; align-items: center; gap: 8px; width: 180px;';
+
     const label = document.createElement('div');
     label.className = 'ai-track-label';
-    label.textContent = track.prompt.substring(0, 20) + '...';
+    label.textContent = track.prompt.substring(0, 15);
     label.title = track.prompt;
+    label.style.flex = '1';
+
+    // Variant selector (if multiple variants available)
+    if (track.variants && track.variants.length > 1) {
+      const variantSelector = document.createElement('select');
+      variantSelector.style.cssText = 'background: #222; color: #00ff00; border: 1px solid #333; padding: 2px 4px; font-size: 11px; cursor: pointer;';
+
+      track.variants.forEach((variant, i) => {
+        const option = document.createElement('option');
+        option.value = i;
+        option.textContent = `v${i + 1}`;
+        if (i === track.selectedVariant) option.selected = true;
+        variantSelector.appendChild(option);
+      });
+
+      variantSelector.addEventListener('change', (e) => {
+        const newVariantIndex = parseInt(e.target.value);
+        track.selectedVariant = newVariantIndex;
+        track.sound = track.variants[newVariantIndex];
+
+        // Update pattern track too
+        const pattern = params.patterns[params.currentPattern];
+        if (pattern && pattern.tracks[trackIndex]) {
+          pattern.tracks[trackIndex].sound = track.sound;
+          pattern.tracks[trackIndex].selectedVariant = newVariantIndex;
+        }
+
+        console.log(`[AI Drum] Switched track ${trackIndex + 1} to variant ${newVariantIndex + 1}`);
+        showStatus(`✓ Switched to Variant ${newVariantIndex + 1}`, 'success');
+      });
+
+      labelContainer.appendChild(label);
+      labelContainer.appendChild(variantSelector);
+
+      // Morph button (shows morph interface for this sound's variants)
+      const morphBtn = document.createElement('button');
+      morphBtn.textContent = '⚡';
+      morphBtn.title = 'Morph between variants';
+      morphBtn.style.cssText = 'background: #222; color: #888; border: 1px solid #333; padding: 2px 6px; font-size: 14px; cursor: pointer; border-radius: 3px;';
+      morphBtn.addEventListener('click', () => {
+        // Show morph section with this track's variants
+        const morphSection = document.getElementById('ai-morph-section');
+        morphSection.style.display = 'block';
+
+        // Update morph pad to use this track's variants
+        params.currentVariants = track.variants;
+
+        // Scroll to morph section
+        morphSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+        showStatus(`✓ Morph interface ready for "${track.prompt}"`, 'success');
+      });
+      morphBtn.addEventListener('mouseenter', () => {
+        morphBtn.style.color = '#00ff00';
+      });
+      morphBtn.addEventListener('mouseleave', () => {
+        morphBtn.style.color = '#888';
+      });
+
+      labelContainer.appendChild(morphBtn);
+    } else {
+      labelContainer.appendChild(label);
+    }
 
     // Steps
     const steps = document.createElement('div');
@@ -1466,7 +1579,7 @@ function renderTracks(audioNodes, params) {
     controls.appendChild(muteBtn);
     controls.appendChild(soloBtn);
 
-    trackDiv.appendChild(label);
+    trackDiv.appendChild(labelContainer);
     trackDiv.appendChild(steps);
     trackDiv.appendChild(controls);
 
