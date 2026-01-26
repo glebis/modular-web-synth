@@ -921,6 +921,9 @@ function bindAIControls(audioNodes, params) {
   // Load saved sounds and presets on init
   loadSoundsFromLocalStorage();
   updatePresetsUI();
+
+  // Render empty tracks on init
+  renderTracks(audioNodes, params);
 }
 
 function initializeNexusControls(audioNodes, params, retryCount = 0) {
@@ -1509,17 +1512,20 @@ function addTrack(sound, audioNodes, params, allVariants = null) {
 
 function renderTracks(audioNodes, params) {
   const container = document.getElementById('ai-track-list');
-
-  if (params.tracks.length === 0) {
-    container.innerHTML = '<div style="color: #666; text-align: center; padding: 40px;">Generate sounds to start sequencing</div>';
-    return;
-  }
-
   container.innerHTML = '';
 
-  params.tracks.forEach((track, trackIndex) => {
+  // Always show 8 tracks (filled or empty)
+  const maxTracks = 8;
+  const defaultTrackNames = ['Kick', 'Snare', 'Hi-Hat', 'Clap', 'Perc 1', 'Perc 2', 'FX 1', 'FX 2'];
+
+  for (let trackIndex = 0; trackIndex < maxTracks; trackIndex++) {
+    const track = params.tracks[trackIndex];
+    const hasSound = track && track.sound;
     const trackDiv = document.createElement('div');
     trackDiv.className = 'ai-track';
+    if (!hasSound) {
+      trackDiv.style.opacity = '0.5';
+    }
 
     // Label with variant selector and morph button
     const labelContainer = document.createElement('div');
@@ -1527,12 +1533,19 @@ function renderTracks(audioNodes, params) {
 
     const label = document.createElement('div');
     label.className = 'ai-track-label';
-    label.textContent = track.prompt.substring(0, 15);
-    label.title = track.prompt;
+
+    if (hasSound) {
+      label.textContent = track.prompt.substring(0, 15);
+      label.title = track.prompt;
+    } else {
+      label.textContent = defaultTrackNames[trackIndex];
+      label.title = 'Empty - generate sounds to fill';
+      label.style.color = '#666';
+    }
     label.style.flex = '1';
 
     // Variant selector (if multiple variants available)
-    if (track.variants && track.variants.length > 1) {
+    if (hasSound && track.variants && track.variants.length > 1) {
       const variantSelector = document.createElement('select');
       variantSelector.style.cssText = 'background: #222; color: #00ff00; border: 1px solid #333; padding: 2px 4px; font-size: 11px; cursor: pointer;';
 
@@ -1601,12 +1614,25 @@ function renderTracks(audioNodes, params) {
       const step = document.createElement('div');
       step.className = 'ai-step';
       step.dataset.step = i; // For highlighting during playback
-      if (track.steps[i] === 1) step.classList.add('active');
+
+      if (hasSound && track.steps[i] === 1) {
+        step.classList.add('active');
+      }
+
+      if (!hasSound) {
+        step.style.cursor = 'not-allowed';
+        step.style.opacity = '0.3';
+      }
 
       step.addEventListener('click', () => {
+        if (!hasSound) {
+          showStatus('✗ Generate sounds first to program steps', 'error');
+          return;
+        }
+
         // Toggle step
         track.steps[i] = track.steps[i] === 1 ? 0 : 1;
-        step.classList.add('active');
+        step.classList.toggle('active');
 
         // Also update pattern track
         const pattern = params.patterns[params.currentPattern];
@@ -1626,32 +1652,46 @@ function renderTracks(audioNodes, params) {
     const muteBtn = document.createElement('button');
     muteBtn.className = 'ai-track-btn';
     muteBtn.textContent = 'M';
-    if (track.mute) muteBtn.classList.add('active');
-    muteBtn.addEventListener('click', () => {
-      track.mute = !track.mute;
-      muteBtn.classList.toggle('active');
 
-      // Update pattern track
-      const pattern = params.patterns[params.currentPattern];
-      if (pattern && pattern.tracks[trackIndex]) {
-        pattern.tracks[trackIndex].mute = track.mute;
-      }
-    });
+    if (hasSound) {
+      if (track.mute) muteBtn.classList.add('active');
+      muteBtn.addEventListener('click', () => {
+        track.mute = !track.mute;
+        muteBtn.classList.toggle('active');
+
+        // Update pattern track
+        const pattern = params.patterns[params.currentPattern];
+        if (pattern && pattern.tracks[trackIndex]) {
+          pattern.tracks[trackIndex].mute = track.mute;
+        }
+      });
+    } else {
+      muteBtn.disabled = true;
+      muteBtn.style.opacity = '0.3';
+      muteBtn.style.cursor = 'not-allowed';
+    }
 
     const soloBtn = document.createElement('button');
     soloBtn.className = 'ai-track-btn';
     soloBtn.textContent = 'S';
-    if (track.solo) soloBtn.classList.add('active');
-    soloBtn.addEventListener('click', () => {
-      track.solo = !track.solo;
-      soloBtn.classList.toggle('active');
 
-      // Update pattern track
-      const pattern = params.patterns[params.currentPattern];
-      if (pattern && pattern.tracks[trackIndex]) {
-        pattern.tracks[trackIndex].solo = track.solo;
-      }
-    });
+    if (hasSound) {
+      if (track.solo) soloBtn.classList.add('active');
+      soloBtn.addEventListener('click', () => {
+        track.solo = !track.solo;
+        soloBtn.classList.toggle('active');
+
+        // Update pattern track
+        const pattern = params.patterns[params.currentPattern];
+        if (pattern && pattern.tracks[trackIndex]) {
+          pattern.tracks[trackIndex].solo = track.solo;
+        }
+      });
+    } else {
+      soloBtn.disabled = true;
+      soloBtn.style.opacity = '0.3';
+      soloBtn.style.cursor = 'not-allowed';
+    }
 
     controls.appendChild(muteBtn);
     controls.appendChild(soloBtn);
@@ -1661,7 +1701,7 @@ function renderTracks(audioNodes, params) {
     trackDiv.appendChild(controls);
 
     container.appendChild(trackDiv);
-  });
+  }
 }
 
 function showStatus(message, type = '') {
