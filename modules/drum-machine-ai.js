@@ -723,19 +723,37 @@ export default {
       generatedSounds: [],
       tracks: [],
       playing: false,
-      currentStep: 0
+      currentStep: 0,
+      currentPattern: 0,
+      patterns: [
+        {
+          id: 'A',
+          name: 'Pattern A',
+          length: 16,
+          tracks: [
+            { sampleId: null, steps: Array(16).fill(0), mute: false, solo: false, volume: 0.8 },
+            { sampleId: null, steps: Array(16).fill(0), mute: false, solo: false, volume: 0.8 },
+            { sampleId: null, steps: Array(16).fill(0), mute: false, solo: false, volume: 0.8 },
+            { sampleId: null, steps: Array(16).fill(0), mute: false, solo: false, volume: 0.8 }
+          ]
+        }
+      ]
     },
     save: (params) => ({
       bpm: params.bpm,
       masterVolume: params.masterVolume,
       generatedSounds: params.generatedSounds,
-      tracks: params.tracks
+      tracks: params.tracks,
+      patterns: params.patterns,
+      currentPattern: params.currentPattern
     }),
     load: (params, saved, audioNodes) => {
       if (saved.bpm) params.bpm = saved.bpm;
       if (saved.masterVolume) params.masterVolume = saved.masterVolume;
       if (saved.generatedSounds) params.generatedSounds = saved.generatedSounds;
       if (saved.tracks) params.tracks = saved.tracks;
+      if (saved.patterns) params.patterns = saved.patterns;
+      if (saved.currentPattern !== undefined) params.currentPattern = saved.currentPattern;
     }
   },
 
