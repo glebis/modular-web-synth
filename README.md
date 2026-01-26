@@ -2,7 +2,7 @@
 
 AI-powered modular synthesizer built with Web Audio API and Claude Agent SDK. Generate custom audio modules through natural language requests.
 
-**🎹 [Live Demo](https://modular-web-synth-n4ury9rib-glebis-projects.vercel.app)**
+**🎹 [Live Demo](https://modular-web-synth-i62ufsqxz-glebis-projects.vercel.app)**
 
 **⚠️ Note**: AI module generation requires [Claude Code](https://claude.ai/code) subscription. Live demo provides pre-built modules only.
 
@@ -53,7 +53,7 @@ AI-powered modular synthesizer built with Web Audio API and Claude Agent SDK. Ge
 ## Quick Start
 
 ### Option 1: Try the Live Demo
-Visit [modular-web-synth-n4ury9rib-glebis-projects.vercel.app](https://modular-web-synth-n4ury9rib-glebis-projects.vercel.app)
+Visit [modular-web-synth-i62ufsqxz-glebis-projects.vercel.app](https://modular-web-synth-i62ufsqxz-glebis-projects.vercel.app)
 
 Pre-built modules only (no AI generation):
 - All audio effects and MIDI modules included
