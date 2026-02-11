@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Claude Code Synthesizer</title>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" defer></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,200..1000;1,9..40,200..1000&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -58,7 +58,7 @@
       line-height: 1.5;
     }
 
-    /* Subtle noise texture for analog feel */
+    /* Subtle noise texture for analog feel -- GPU layer isolated */
     body::before {
       content: '';
       position: fixed;
@@ -70,38 +70,9 @@
       pointer-events: none;
       z-index: 1;
       opacity: 0.5;
+      will-change: transform; /* Promote to own compositor layer */
     }
 
-    /* Boot sequence overlay */
-    #boot-overlay {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: #0a0a0a;
-      z-index: 10000;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-direction: column;
-      gap: 20px;
-      font-size: 14px;
-      opacity: 1;
-      pointer-events: none;
-    }
-
-    #boot-overlay.hidden {
-      opacity: 0;
-      transition: opacity 0.3s var(--ease-out-expo);
-    }
-
-    .boot-line {
-      opacity: 0;
-      transform: translateX(-20px);
-      color: #00ff00;
-      text-shadow: 0 0 10px rgba(0, 255, 0, 0.5);
-    }
 
     .container {
       max-width: 1800px;
@@ -299,6 +270,23 @@
 
     .key.black .key-label {
       color: #666;
+    }
+
+    /* Core controls 3-column grid */
+    .controls-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin: 12px 0;
+    }
+    .controls-grid .control-section {
+      margin: 0;
+    }
+    @media (max-width: 899px) {
+      .controls-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 599px) {
+      .controls-grid { grid-template-columns: 1fr; }
     }
 
     /* Control sections - hardware panel style */
@@ -634,7 +622,7 @@
     /* Visualizer - oscilloscope style */
     .visualizer {
       width: 100%;
-      height: 100px;
+      height: 140px;
       background: radial-gradient(ellipse at center, #0a0a0a 0%, #000 100%);
       border: 1px solid var(--panel-border);
       border-radius: 2px;
@@ -701,7 +689,7 @@
       background: linear-gradient(180deg, #2a2a2a 0%, #1a1a1a 100%);
       color: var(--text-value);
       border: 1px solid var(--control-border);
-      padding: 4px 10px;
+      padding: 6px 10px;
       margin: 3px 2px;
       border-radius: 2px;
       cursor: pointer;
@@ -710,6 +698,9 @@
       transition: all 0.15s var(--ease-out-quint);
       text-transform: none;
       box-shadow: 0 1px 0 rgba(0, 0, 0, 0.5);
+      vertical-align: top;
+      max-width: 180px;
+      line-height: 1.3;
     }
 
     .suggestion-chip:hover {
@@ -815,19 +806,6 @@
     .chat-send:disabled {
       opacity: 0.5;
       cursor: not-allowed;
-    }
-
-    .info-box {
-      background: linear-gradient(135deg, #0a0a0a 0%, #151515 100%);
-      border: 1px solid var(--panel-border);
-      border-left: 3px solid #5a8a8a;
-      border-radius: 2px;
-      padding: 12px;
-      margin-bottom: 16px;
-      font-size: 11px;
-      color: #8ab8b8;
-      line-height: 1.6;
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
     }
 
     /* Section dividers - hardware panel style */
@@ -971,130 +949,119 @@
     .seq-transport-btn:active {
       background: #00aa00;
     }
+
+    /* Preset buttons */
+    .preset-btn-load {
+      background: var(--control-bg); color: var(--text-value); border: 1px solid var(--control-border);
+      padding: 4px 8px; cursor: pointer; font-size: 9px; border-radius: 2px; text-transform: uppercase;
+      font-family: 'DM Sans', sans-serif;
+    }
+    .preset-btn-load:hover { background: var(--accent-brass); color: var(--panel-bg); border-color: var(--accent-brass); }
+    .preset-btn-delete {
+      background: var(--control-bg); color: #cc6666; border: 1px solid var(--control-border);
+      padding: 4px 8px; cursor: pointer; font-size: 9px; border-radius: 2px; text-transform: uppercase;
+      font-family: 'DM Sans', sans-serif;
+    }
+    .preset-btn-delete:hover { background: #aa4444; color: var(--text-primary); border-color: #aa4444; }
+
+    /* Lightweight key press flash (GPU-accelerated, no DOM creation) */
+    @keyframes keyFlash {
+      0% { box-shadow: 0 0 12px rgba(212, 175, 55, 0.8), 0 4px 0 #888; }
+      100% { box-shadow: 0 4px 0 #888, 0 5px 8px rgba(0, 0, 0, 0.3); }
+    }
+    .key.key-flash {
+      animation: keyFlash 0.35s var(--ease-out-quint) forwards;
+    }
+
+    /* Collapsible sections */
+    .section-toggle {
+      cursor: pointer;
+      user-select: none;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .section-toggle::after {
+      content: '\25B2'; /* up triangle */
+      font-size: 8px;
+      color: var(--text-secondary);
+      transition: transform 0.2s var(--ease-out-quint);
+    }
+    .section-toggle.collapsed::after {
+      transform: rotate(180deg);
+    }
+    .section-body {
+      overflow: hidden;
+      transition: max-height 0.3s var(--ease-out-quint), opacity 0.2s;
+      max-height: 2000px;
+      opacity: 1;
+    }
+    .section-body.collapsed {
+      max-height: 0;
+      opacity: 0;
+    }
   </style>
 </head>
 <body>
-  <!-- Boot sequence overlay -->
-  <div id="boot-overlay">
-    <div class="boot-line" data-boot-line="0">INITIALIZING CLAUDE SYNTH v1.0...</div>
-    <div class="boot-line" data-boot-line="1">LOADING AUDIO CONTEXT...</div>
-    <div class="boot-line" data-boot-line="2">MOUNTING WEB AUDIO NODES...</div>
-    <div class="boot-line" data-boot-line="3">ESTABLISHING MIDI CORE...</div>
-    <div class="boot-line" data-boot-line="4">READY.</div>
-  </div>
-
   <div class="container">
     <!-- SYNTH PANEL -->
     <div class="synth-panel">
-      <h1>🎹 Claude Code Synthesizer</h1>
+      <h1>Claude Code Synthesizer</h1>
 
       <!-- Visualizer -->
       <canvas class="visualizer" id="visualizer"></canvas>
 
-      <!-- Oscillator Controls -->
-      <div class="control-section">
-        <h2>Oscillator</h2>
-        <div class="control-group">
-          <label class="control-label">
-            Waveform
-          </label>
-          <select id="waveform">
-            <option value="sine">Sine</option>
-            <option value="square">Square</option>
-            <option value="sawtooth">Sawtooth</option>
-            <option value="triangle">Triangle</option>
-          </select>
-        </div>
-        <div class="control-group">
-          <label class="control-label">
-            Detune <span class="control-value" id="detune-value">0</span>
-          </label>
-          <input type="range" id="detune" min="-100" max="100" value="0">
-        </div>
-      </div>
-
-      <!-- Envelope Controls -->
-      <div class="control-section">
-        <h2>Envelope</h2>
-        <div class="control-group">
-          <label class="control-label">
-            Attack <span class="control-value" id="attack-value">0.1s</span>
-          </label>
-          <input type="range" id="attack" min="0" max="2" step="0.01" value="0.1">
-        </div>
-        <div class="control-group">
-          <label class="control-label">
-            Release <span class="control-value" id="release-value">0.3s</span>
-          </label>
-          <input type="range" id="release" min="0" max="2" step="0.01" value="0.3">
-        </div>
-        <div class="control-group">
-          <label class="control-label" style="display: flex; align-items: center; cursor: pointer;">
-            <input type="checkbox" id="hold-mode" style="width: auto; margin-right: 8px; cursor: pointer;">
-            <span>Hold Mode</span>
-          </label>
-        </div>
-      </div>
-
-      <!-- Volume Control -->
-      <div class="control-section">
-        <h2>Output</h2>
-        <div class="control-group">
-          <label class="control-label">
-            Volume <span class="control-value" id="volume-value">50%</span>
-          </label>
-          <input type="range" id="volume" min="0" max="100" value="50">
-        </div>
-      </div>
-
-      <!-- === MODULE BROWSER === -->
-      <div class="claude-section">
-        <div class="claude-section-label">📦 Available Modules</div>
-        <div id="module-browser" style="padding: 10px;">
-          <!-- Modules will be listed here -->
-        </div>
-      </div>
-
-      <!-- === PRESET SYSTEM === -->
-      <div class="claude-section">
-        <div class="claude-section-label">💾 Global Presets</div>
-        <div style="padding: 10px; background: #0a0a0a; border: 1px solid #00ff00; border-radius: 2px;">
-          <!-- Save preset -->
-          <div style="margin-bottom: 12px;">
-            <label style="display: block; font-size: 10px; color: #00ff00; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.8px;">Save Current Setup</label>
-            <div style="display: flex; gap: 6px;">
-              <input
-                type="text"
-                id="preset-name-input"
-                placeholder="Preset name..."
-                style="flex: 1; background: #1a1a1a; border: 1px solid #00ff00; color: #00ff00; padding: 6px 8px; font-family: 'JetBrains Mono', monospace; font-size: 11px; border-radius: 2px;"
-              >
-              <button
-                id="preset-save-btn"
-                style="background: #0a0a0a; color: #00ff00; border: 1px solid #00ff00; padding: 6px 12px; cursor: pointer; font-size: 10px; font-weight: 600; border-radius: 2px; text-transform: uppercase; transition: all 0.15s;"
-                onmouseover="this.style.background='#00ff00'; this.style.color='#0a0a0a';"
-                onmouseout="this.style.background='#0a0a0a'; this.style.color='#00ff00';"
-              >Save</button>
-            </div>
-          </div>
-
-          <!-- Preset list -->
-          <div>
-            <label style="display: block; font-size: 10px; color: #00ff00; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.8px;">Saved Presets</label>
-            <div id="preset-list" style="max-height: 200px; overflow-y: auto;">
-              <div style="font-size: 11px; color: #666; font-style: italic;">No presets saved</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- === CLAUDE CODE SECTION: ADD NEW CONTROLS HERE === -->
-      <div class="claude-section" id="custom-controls">
-        <div class="claude-section-label">⚡ Loaded Modules</div>
-
-        <!-- Low-Pass Filter -->
+      <!-- Core sound controls -- 3-column grid -->
+      <div class="controls-grid">
         <div class="control-section">
-          <h2>Low-Pass Filter</h2>
+          <h2>Oscillator</h2>
+          <div class="control-group">
+            <label class="control-label">Waveform</label>
+            <select id="waveform">
+              <option value="sine">Sine</option>
+              <option value="square">Square</option>
+              <option value="sawtooth">Sawtooth</option>
+              <option value="triangle">Triangle</option>
+            </select>
+          </div>
+          <div class="control-group">
+            <label class="control-label">
+              Detune <span class="control-value" id="detune-value">0</span>
+            </label>
+            <input type="range" id="detune" min="-100" max="100" value="0">
+          </div>
+        </div>
+
+        <div class="control-section">
+          <h2>Envelope</h2>
+          <div class="control-group">
+            <label class="control-label">
+              Attack <span class="control-value" id="attack-value">0.1s</span>
+            </label>
+            <input type="range" id="attack" min="0" max="2" step="0.01" value="0.1">
+          </div>
+          <div class="control-group">
+            <label class="control-label">
+              Release <span class="control-value" id="release-value">0.3s</span>
+            </label>
+            <input type="range" id="release" min="0" max="2" step="0.01" value="0.3">
+          </div>
+          <div class="control-group">
+            <label class="control-label" style="display: flex; align-items: center; cursor: pointer;">
+              <input type="checkbox" id="hold-mode" style="width: auto; margin-right: 8px; cursor: pointer;">
+              <span>Hold Mode</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="control-section">
+          <h2>Output</h2>
+          <div class="control-group">
+            <label class="control-label">
+              Volume <span class="control-value" id="volume-value">50%</span>
+            </label>
+            <input type="range" id="volume" min="0" max="100" value="50">
+          </div>
           <div class="control-group">
             <label class="control-label">
               Cutoff <span class="control-value" id="filter-cutoff-value">5000 Hz</span>
@@ -1110,51 +1077,66 @@
         </div>
       </div>
 
-      <!-- === MIDI CONTROLS SECTION === -->
-      <div class="claude-section" id="midi-controls">
-        <div class="claude-section-label">🎹 MIDI Effects Chain</div>
-        <!-- MIDI modules will be inserted here -->
-      </div>
-
-      <!-- Keyboard -->
+      <!-- Keyboard (primary interaction -- placed right after sound controls) -->
       <h2>Keyboard</h2>
       <div class="keyboard" id="keyboard"></div>
+
+      <!-- Loaded audio modules -->
+      <div class="claude-section" id="custom-controls">
+        <div class="claude-section-label section-toggle" data-target="custom-controls-body">Loaded Modules</div>
+        <!-- Dynamic modules inserted here -->
+      </div>
+
+      <!-- MIDI Effects Chain (collapsible, collapsed by default) -->
+      <div class="claude-section" id="midi-controls">
+        <div class="claude-section-label section-toggle collapsed" data-target="midi-controls-body">MIDI Effects Chain</div>
+        <div id="midi-controls-body" class="section-body collapsed">
+          <!-- MIDI modules will be inserted here -->
+        </div>
+      </div>
+
+      <!-- Module Browser (collapsible, collapsed by default) -->
+      <div class="claude-section">
+        <div class="claude-section-label section-toggle collapsed" data-target="module-browser-body">Available Modules</div>
+        <div id="module-browser-body" class="section-body collapsed">
+          <div id="module-browser" style="padding: 10px;">
+            <!-- Modules will be listed here -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Presets (collapsible, collapsed by default, unified styling) -->
+      <div class="claude-section">
+        <div class="claude-section-label section-toggle collapsed" data-target="preset-body">Presets</div>
+        <div id="preset-body" class="section-body collapsed">
+          <div style="padding: 10px;">
+            <div style="display: flex; gap: 6px; margin-bottom: 12px;">
+              <input
+                type="text"
+                id="preset-name-input"
+                placeholder="Preset name..."
+                style="flex: 1; background: var(--control-bg); border: 1px solid var(--control-border); color: var(--text-primary); padding: 6px 8px; font-family: 'JetBrains Mono', monospace; font-size: 11px; border-radius: 2px;"
+              >
+              <button id="preset-save-btn" class="module-load-btn">Save</button>
+            </div>
+            <div id="preset-list" style="max-height: 200px; overflow-y: auto;">
+              <div style="font-size: 11px; color: var(--text-secondary); font-style: italic;">No presets saved</div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- CHAT PANEL -->
     <div class="chat-panel">
-      <h1>💬 Claude Interface</h1>
-
-      <div class="info-box">
-        <strong>Agent SDK Mode:</strong><br>
-        1. Start server: <code>npm run dev</code><br>
-        2. Type feature request below<br>
-        3. Click "Send Request"<br>
-        4. Claude generates and loads module automatically
-      </div>
-
-      <!-- Module List -->
-      <div class="control-section" style="margin-bottom: 15px;">
-        <h2>Loaded Modules</h2>
-        <div id="module-list" style="font-size: 11px; color: #00aaff;">
-          No modules loaded
-        </div>
-      </div>
+      <h1>Claude Interface</h1>
 
       <div class="chat-messages" id="chat-messages">
         <!-- Messages will be added here via JavaScript -->
       </div>
 
-      <div style="margin-bottom: 6px; display: flex; gap: 4px; flex-wrap: wrap;">
-        <button class="regenerate-btn" id="suggest-modules-btn">
-          💡 Suggest Modules
-        </button>
-        <button class="regenerate-btn" id="suggest-effects-btn">
-          ✨ Creative Effects
-        </button>
-        <button class="regenerate-btn" id="suggest-modulation-btn">
-          🌀 Modulation
-        </button>
+      <div style="margin-bottom: 6px;">
+        <button class="regenerate-btn" id="suggest-modules-btn">Ideas</button>
       </div>
 
       <div class="chat-input-container">
@@ -1162,10 +1144,10 @@
           type="text"
           class="chat-input"
           id="chat-input"
-          placeholder="Request a feature..."
+          placeholder="Describe a module..."
           autocomplete="off"
         >
-        <button class="chat-send" id="chat-send">Send Request</button>
+        <button class="chat-send" id="chat-send">Generate</button>
       </div>
     </div>
   </div>
@@ -1191,39 +1173,12 @@
     // Load previously loaded modules from localStorage
     synth.moduleLoader.loadFromLocalStorage();
 
-    // Load default MIDI modules
+    // Load essential MIDI modules only (others available via console)
     async function loadDefaultMIDIModules() {
       try {
-        // Load visualizer first (shows all MIDI activity)
         await midi.loadModule((await import('./midi-modules/midi-visualizer.js')).default);
-
-        // Load sequencer (generates notes)
         await midi.loadModule((await import('./midi-modules/midi-sequencer.js')).default);
-
-        // Load transpose (always useful)
         await midi.loadModule((await import('./midi-modules/midi-transpose.js')).default);
-
-        // Load velocity curve
-        await midi.loadModule((await import('./midi-modules/midi-velocity.js')).default);
-
-        // Load chord generator
-        await midi.loadModule((await import('./midi-modules/midi-chord.js')).default);
-
-        // Load quantizer
-        await midi.loadModule((await import('./midi-modules/midi-quantizer.js')).default);
-
-        // Load MIDI delay
-        await midi.loadModule((await import('./midi-modules/midi-delay.js')).default);
-
-        // Load Euclidean Rhythm (rhythm filter) - starts bypassed
-        const euclideanId = await midi.loadModule((await import('./midi-modules/midi-euclidean.js')).default);
-        midi.toggleBypass(euclideanId); // Start bypassed to avoid filtering notes
-
-        // Load Binary Spiral sequencer - starts bypassed
-        const spiralId = await midi.loadModule((await import('./midi-modules/midi-binary-spiral.js')).default);
-        midi.toggleBypass(spiralId); // Start bypassed
-
-        console.log('✓ Default MIDI modules loaded (Euclidean & Binary Spiral start bypassed)');
       } catch (error) {
         console.error('Failed to load default MIDI modules:', error);
       }
@@ -1231,24 +1186,12 @@
 
     loadDefaultMIDIModules();
 
-    // === GLOBAL HELPER FUNCTIONS ===
-
-    // Load MIDI module from console
+    // Load additional MIDI modules from console
     window.loadMIDIModule = async (path) => {
-      try {
-        const module = (await import(path)).default;
-        await window.MIDICore.instance.loadModule(module);
-        console.log(`✓ Loaded MIDI module: ${module.name}`);
-        return module;
-      } catch (error) {
-        console.error(`✗ Failed to load MIDI module from ${path}:`, error);
-        throw error;
-      }
+      const module = (await import(path)).default;
+      await window.MIDICore.instance.loadModule(module);
+      return module;
     };
-
-    console.log('💡 Tip: Load MIDI modules from console using:');
-    console.log('  await loadMIDIModule("./midi-modules/midi-euclidean.js")');
-    console.log('  await loadMIDIModule("./midi-modules/midi-binary-spiral.js")');
 
     // === UI CONTROLS ===
     document.getElementById('waveform').addEventListener('change', (e) => {
@@ -1503,30 +1446,79 @@
     // === VISUALIZER ===
     const canvas = document.getElementById('visualizer');
     const ctx = canvas.getContext('2d');
-    canvas.width = canvas.offsetWidth;
-    canvas.height = canvas.offsetHeight;
+
+    // High-DPI canvas setup
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    ctx.scale(dpr, dpr);
+
+    // Use display size for drawing
+    const displayWidth = rect.width;
+    const displayHeight = rect.height;
 
     const bufferLength = analyser.frequencyBinCount;
     const dataArray = new Uint8Array(bufferLength);
+
+    let visualizerIdle = false;
+    let idleFrameCount = 0;
+
+    function isAudioSilent() {
+      // Check a few samples for any deviation from 128 (silence)
+      for (let i = 0; i < bufferLength; i += 64) {
+        if (Math.abs(dataArray[i] - 128) > 1) return false;
+      }
+      return true;
+    }
 
     function drawVisualizer() {
       requestAnimationFrame(drawVisualizer);
 
       analyser.getByteTimeDomainData(dataArray);
 
-      ctx.fillStyle = '#0a0a0a';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      // Skip rendering when idle (silent) to save CPU
+      if (isAudioSilent()) {
+        if (++idleFrameCount > 30) {
+          if (!visualizerIdle) {
+            // Draw one last idle frame
+            ctx.fillStyle = '#0a0a0a';
+            ctx.fillRect(0, 0, displayWidth, displayHeight);
+            drawEnvelopeOverlay();
+            // Flat center line
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = '#00ff00';
+            ctx.beginPath();
+            ctx.moveTo(0, displayHeight / 2);
+            ctx.lineTo(displayWidth, displayHeight / 2);
+            ctx.stroke();
+            visualizerIdle = true;
+          }
+          return;
+        }
+      } else {
+        idleFrameCount = 0;
+        visualizerIdle = false;
+      }
 
+      // Clear
+      ctx.fillStyle = '#0a0a0a';
+      ctx.fillRect(0, 0, displayWidth, displayHeight);
+
+      // Draw envelope overlay (attack and release curves)
+      drawEnvelopeOverlay();
+
+      // Draw waveform (no shadowBlur -- expensive per-pixel compositing)
       ctx.lineWidth = 2;
       ctx.strokeStyle = '#00ff00';
       ctx.beginPath();
 
-      const sliceWidth = canvas.width / bufferLength;
+      const sliceWidth = displayWidth / bufferLength;
       let x = 0;
 
       for (let i = 0; i < bufferLength; i++) {
         const v = dataArray[i] / 128.0;
-        const y = v * canvas.height / 2;
+        const y = v * displayHeight / 2;
 
         if (i === 0) {
           ctx.moveTo(x, y);
@@ -1540,13 +1532,67 @@
       ctx.stroke();
     }
 
+    function drawEnvelopeOverlay() {
+      const attack = params.attack;
+      const release = params.release;
+      const maxTime = Math.max(attack + 0.5 + release, 2); // Total envelope time
+
+      ctx.strokeStyle = 'rgba(212, 175, 55, 0.3)';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([3, 3]);
+      ctx.beginPath();
+
+      // Attack phase (0 to attack time)
+      const attackX = (attack / maxTime) * displayWidth;
+      ctx.moveTo(0, displayHeight);
+      ctx.lineTo(attackX, displayHeight * 0.2); // Peak at 80% height
+
+      // Sustain phase (brief hold at peak)
+      const sustainX = ((attack + 0.5) / maxTime) * displayWidth;
+      ctx.lineTo(sustainX, displayHeight * 0.2);
+
+      // Release phase (decay to zero)
+      const releaseX = ((attack + 0.5 + release) / maxTime) * displayWidth;
+      ctx.lineTo(releaseX, displayHeight);
+
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Draw labels
+      ctx.fillStyle = 'rgba(212, 175, 55, 0.6)';
+      ctx.font = '9px JetBrains Mono, monospace';
+
+      // Attack label
+      ctx.fillText(`A:${attack.toFixed(2)}s`, 5, displayHeight - 5);
+
+      // Release label
+      if (releaseX < displayWidth - 60) {
+        ctx.fillText(`R:${release.toFixed(2)}s`, sustainX + 5, displayHeight - 5);
+      }
+
+      // Center line
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(0, displayHeight / 2);
+      ctx.lineTo(displayWidth, displayHeight / 2);
+      ctx.stroke();
+    }
+
     drawVisualizer();
+
+    // Handle window resize for high-DPI canvas
+    window.addEventListener('resize', () => {
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = rect.width * dpr;
+      canvas.height = rect.height * dpr;
+      ctx.scale(dpr, dpr);
+    });
 
     // === CHAT INTERFACE ===
     const chatMessages = document.getElementById('chat-messages');
     const chatInput = document.getElementById('chat-input');
     const chatSend = document.getElementById('chat-send');
-    const moduleListEl = document.getElementById('module-list');
 
     function addMessage(text, type = 'user') {
       const message = document.createElement('div');
@@ -1602,24 +1648,15 @@
       sendMessage();
     };
 
-    function updateModuleList() {
-      const modules = window.SynthCore.loader.listModules();
-      if (modules.length === 0) {
-        moduleListEl.textContent = 'No modules loaded';
-      } else {
-        moduleListEl.innerHTML = modules.map(m =>
-          `• ${m.name} v${m.version} <span style="color:#555">[${m.insertionPoint}]</span> <button onclick="unloadModule('${m.id}')" style="font-size:10px;background:#ff4444;color:#fff;border:none;padding:2px 6px;cursor:pointer;border-radius:2px;">Unload</button>`
-        ).join('<br>');
-      }
-    }
+    // No-op -- module list is shown inline via module controls
+    function updateModuleList() {}
 
     window.unloadModule = async (moduleId) => {
       try {
         await window.SynthCore.loader.unloadModule(moduleId);
-        addMessage(`✓ Module ${moduleId} unloaded`, 'system');
-        updateModuleList();
+        addMessage(`Module ${moduleId} unloaded`, 'system');
       } catch (error) {
-        addMessage(`✗ Failed to unload module: ${error.message}`, 'system');
+        addMessage(`Failed to unload: ${error.message}`, 'system');
       }
     };
 
@@ -1654,12 +1691,17 @@
 
         // Check if this is a suggestion response or module creation response
         if (result.suggestions) {
-          // Format suggestions as a nice list
-          let suggestionText = 'Here are some module ideas:\n\n';
-          result.suggestions.forEach((s, i) => {
-            suggestionText += `${i + 1}. ${s.name}\n   ${s.description}\n   Category: ${s.category}\n\n`;
-          });
-          addMessage(suggestionText, 'assistant');
+          // Render clickable suggestion chips
+          const msg = document.createElement('div');
+          msg.className = 'message assistant';
+          msg.innerHTML = result.suggestions.map(s =>
+            `<span class="suggestion-chip" onclick="sendSuggestion('${s.name.replace(/'/g, "\\'")}')">
+              <strong>${s.name}</strong><br>
+              <span style="font-size:9px;opacity:0.7">${s.description}</span>
+            </span>`
+          ).join(' ');
+          chatMessages.appendChild(msg);
+          chatMessages.scrollTop = chatMessages.scrollHeight;
         } else {
           // Module creation response
           const { moduleId, url } = result;
@@ -1689,183 +1731,50 @@
       if (e.key === 'Enter') sendMessage();
     });
 
-    // Quick suggestion buttons
+    // Quick suggestion button
     document.getElementById('suggest-modules-btn')?.addEventListener('click', () => {
       chatInput.value = 'suggest module ideas';
       sendMessage();
     });
 
-    document.getElementById('suggest-effects-btn')?.addEventListener('click', () => {
-      chatInput.value = 'suggest creative effects';
-      sendMessage();
-    });
-
-    document.getElementById('suggest-modulation-btn')?.addEventListener('click', () => {
-      chatInput.value = 'suggest modulation sources';
-      sendMessage();
-    });
-
-    // === ANIMATION SYSTEM ===
+    // === ANIMATION SYSTEM (lightweight, no boot sequence) ===
     const AnimationController = {
-      // Boot sequence animation
-      playBootSequence() {
-        const bootLines = document.querySelectorAll('.boot-line');
-        const overlay = document.getElementById('boot-overlay');
-
-        anime.timeline()
-          .add({
-            targets: bootLines,
-            opacity: [0, 1],
-            translateX: [-20, 0],
-            delay: anime.stagger(150),
-            duration: 300,
-            easing: 'cubicBezier(0.16, 1, 0.3, 1)'
-          })
-          .add({
-            targets: bootLines[bootLines.length - 1],
-            scale: [1, 1.05, 1],
-            duration: 200,
-            easing: 'easeOutQuad'
-          }, '-=100')
-          .add({
-            targets: overlay,
-            opacity: 0,
-            duration: 400,
-            easing: 'easeOutExpo',
-            complete: () => {
-              overlay.style.display = 'none';
-              this.playInterfaceEntrance();
-            }
-          }, '+=500');
-      },
-
-      // Interface entrance choreography
-      playInterfaceEntrance() {
-        const sections = document.querySelectorAll('.control-section, .synth-panel, .chat-panel');
-
-        anime({
-          targets: sections,
-          opacity: [0, 1],
-          translateY: [30, 0],
-          delay: anime.stagger(80, {start: 100}),
-          duration: 500,
-          easing: 'cubicBezier(0.22, 1, 0.36, 1)'
-        });
-      },
-
-      // Module load animation (called from synthesizer-core.js)
       playModuleEnter(moduleElement) {
-        // Simple, elegant slide-in
-        moduleElement.style.opacity = '0';
-        moduleElement.style.transform = 'translateY(12px)';
-
-        anime({
-          targets: moduleElement,
-          opacity: [0, 1],
-          translateY: [12, 0],
-          duration: 400,
-          easing: 'cubicBezier(0.22, 1, 0.36, 1)'
-        });
-
+        moduleElement.classList.add('entering');
       },
 
-      // Module bypass animation
       playModuleBypass(moduleElement, bypassed) {
-        anime({
-          targets: moduleElement,
-          opacity: bypassed ? 0.5 : 1,
-          filter: bypassed ? 'grayscale(1)' : 'grayscale(0)',
-          duration: 300,
-          easing: 'easeOutQuad'
-        });
+        moduleElement.classList.toggle('bypassed', bypassed);
       },
 
-      // Module delete animation
       playModuleDelete(moduleElement, callback) {
-        // Glitch out effect
-        anime({
-          targets: moduleElement,
-          duration: 150,
-          keyframes: [
-            { translateX: -4, filter: 'hue-rotate(90deg)' },
-            { translateX: 4, filter: 'hue-rotate(180deg)' },
-            { translateX: -2, filter: 'hue-rotate(270deg)' },
-            { translateX: 2, filter: 'hue-rotate(0deg)' }
-          ],
-          easing: 'linear'
-        });
-
-        // Fade out and collapse
-        anime({
-          targets: moduleElement,
-          opacity: [1, 0],
-          height: [moduleElement.offsetHeight, 0],
-          marginTop: 0,
-          marginBottom: 0,
-          paddingTop: 0,
-          paddingBottom: 0,
-          delay: 150,
-          duration: 400,
-          easing: 'cubicBezier(0.16, 1, 0.3, 1)',
-          complete: callback
-        });
+        moduleElement.style.transition = 'opacity 0.2s, max-height 0.3s';
+        moduleElement.style.opacity = '0';
+        moduleElement.style.maxHeight = '0';
+        moduleElement.style.overflow = 'hidden';
+        setTimeout(callback, 300);
       },
 
-      // Key press animation enhancement
       playKeyPress(keyElement) {
-        // Particle burst effect
-        const rect = keyElement.getBoundingClientRect();
-        const particles = 8;
-
-        for (let i = 0; i < particles; i++) {
-          const particle = document.createElement('div');
-          particle.style.cssText = `
-            position: fixed;
-            width: 4px;
-            height: 4px;
-            background: #00ff00;
-            border-radius: 50%;
-            pointer-events: none;
-            z-index: 1000;
-            left: ${rect.left + rect.width / 2}px;
-            top: ${rect.top + rect.height / 2}px;
-            box-shadow: 0 0 6px rgba(0, 255, 0, 0.8);
-          `;
-          document.body.appendChild(particle);
-
-          const angle = (Math.PI * 2 * i) / particles;
-          const distance = 30 + Math.random() * 20;
-
-          anime({
-            targets: particle,
-            translateX: Math.cos(angle) * distance,
-            translateY: Math.sin(angle) * distance,
-            opacity: [1, 0],
-            scale: [1, 0.5],
-            duration: 400 + Math.random() * 200,
-            easing: 'easeOutQuad',
-            complete: () => particle.remove()
-          });
-        }
-      },
-
-      // Visualizer pulse sync
-      pulseVisualizer(canvas) {
-        anime({
-          targets: canvas,
-          boxShadow: [
-            '0 0 0 rgba(0, 255, 0, 0)',
-            '0 0 30px rgba(0, 255, 0, 0.6)',
-            '0 0 0 rgba(0, 255, 0, 0)'
-          ],
-          duration: 800,
-          easing: 'easeOutQuad'
-        });
+        keyElement.classList.remove('key-flash');
+        void keyElement.offsetWidth;
+        keyElement.classList.add('key-flash');
       }
     };
 
-    // Make animation controller globally available
     window.SynthAnimations = AnimationController;
+
+    // === COLLAPSIBLE SECTIONS ===
+    document.querySelectorAll('.section-toggle').forEach(toggle => {
+      toggle.addEventListener('click', () => {
+        const targetId = toggle.dataset.target;
+        const body = document.getElementById(targetId);
+        if (body) {
+          toggle.classList.toggle('collapsed');
+          body.classList.toggle('collapsed');
+        }
+      });
+    });
 
 
     // === PRESET SYSTEM ===
@@ -1920,24 +1829,14 @@
           return `
             <div style="background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 2px; padding: 8px; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center;">
               <div style="flex: 1;">
-                <div style="font-size: 11px; color: #00ff00; font-weight: 600; margin-bottom: 2px;">${name}</div>
+                <div style="font-size: 11px; color: var(--text-value); font-weight: 600; margin-bottom: 2px;">${name}</div>
                 <div style="font-size: 9px; color: #666;">
                   ${preset.modules.length} modules • ${dateStr}
                 </div>
               </div>
               <div style="display: flex; gap: 4px;">
-                <button
-                  onclick="loadPresetByName('${name.replace(/'/g, "\\'")}')"
-                  style="background: #0a0a0a; color: #00ff00; border: 1px solid #00ff00; padding: 4px 8px; cursor: pointer; font-size: 9px; border-radius: 2px; text-transform: uppercase;"
-                  onmouseover="this.style.background='#00ff00'; this.style.color='#0a0a0a';"
-                  onmouseout="this.style.background='#0a0a0a'; this.style.color='#00ff00';"
-                >Load</button>
-                <button
-                  onclick="deletePresetByName('${name.replace(/'/g, "\\'")}')"
-                  style="background: #0a0a0a; color: #ff4444; border: 1px solid #ff4444; padding: 4px 8px; cursor: pointer; font-size: 9px; border-radius: 2px; text-transform: uppercase;"
-                  onmouseover="this.style.background='#ff4444'; this.style.color='#0a0a0a';"
-                  onmouseout="this.style.background='#0a0a0a'; this.style.color='#ff4444';"
-                >Delete</button>
+                <button onclick="loadPresetByName('${name.replace(/'/g, "\\'")}')" class="preset-btn-load">Load</button>
+                <button onclick="deletePresetByName('${name.replace(/'/g, "\\'")}')" class="preset-btn-delete">Delete</button>
               </div>
             </div>
           `;
@@ -2041,6 +1940,13 @@
 
     // === MODULE BROWSER ===
     const AVAILABLE_MODULES = [
+      {
+        id: 'synth-fm',
+        name: 'FM Synthesis',
+        description: 'Frequency modulation for complex timbres',
+        path: './modules/synth-fm.js',
+        category: 'synthesis'
+      },
       {
         id: 'effect-delay',
         name: 'Delay',
@@ -2182,20 +2088,8 @@
     }
 
     // === INITIALIZATION ===
-    console.log('🎹 Modular Synthesizer initialized');
-    console.log('💡 Agent SDK server ready');
-    console.log('📦 SynthCore API:', window.SynthCore);
-
-    // Initialize module browser
     initModuleBrowser();
-
-    // Initialize preset system
     initPresetSystem();
-
-    // Play boot sequence
-    AnimationController.playBootSequence();
-
-    updateModuleList();
   </script>
 </body>
 </html>

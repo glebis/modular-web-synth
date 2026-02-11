@@ -189,10 +189,12 @@ class MIDICore {
    */
   injectUI(instance) {
     const { definition, params } = instance;
-    const container = document.getElementById(definition.ui.container);
+    const containerId = definition.ui.container;
+    // Prefer a -body wrapper (for collapsible sections) if it exists
+    const container = document.getElementById(containerId + '-body') || document.getElementById(containerId);
 
     if (!container) {
-      console.warn(`[MIDI] Container #${definition.ui.container} not found`);
+      console.warn(`[MIDI] Container #${containerId} not found`);
       return;
     }
 

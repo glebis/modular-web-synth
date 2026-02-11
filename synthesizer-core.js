@@ -178,141 +178,75 @@ class ModuleLoader {
    * Connects modules based on insertionPoint
    */
   updateAudioGraph() {
-    console.log('[ModuleLoader] ========== UPDATING AUDIO GRAPH ==========');
-    console.log('[ModuleLoader] Total modules:', this.modules.size);
-
-    // Disconnect all modules AND filter first
-    // IMPORTANT: Only disconnect OUTPUT, not input (input disconnect breaks internal module graph!)
-    this.modules.forEach(({ audioNodes, definition, bypassed }) => {
-      console.log(`[ModuleLoader] Module: ${definition.id}, bypassed: ${bypassed}`);
-      console.log(`[ModuleLoader]   input node:`, audioNodes.input);
-      console.log(`[ModuleLoader]   output node:`, audioNodes.output);
-      try {
-        // Only disconnect output - disconnecting input breaks internal module connections!
-        audioNodes.output.disconnect();
-        console.log('[ModuleLoader] Disconnected output:', definition.id);
-      } catch (e) {
-        console.log('[ModuleLoader] Already disconnected:', definition.id);
-      }
+    // Disconnect all module outputs and filter
+    this.modules.forEach(({ audioNodes }) => {
+      try { audioNodes.output.disconnect(); } catch (e) {}
     });
-
-    // Disconnect filter from everything
-    try {
-      this.audioGraph.filterNode.disconnect();
-      console.log('[ModuleLoader] Filter disconnected');
-    } catch (e) {
-      console.log('[ModuleLoader] Filter already disconnected');
-    }
+    try { this.audioGraph.filterNode.disconnect(); } catch (e) {}
 
     // Build chain by insertion point
     let currentOutput = null;
 
     // Post-oscillator modules (between oscillator and filter)
     const postOscModules = this.getModulesByInsertionPoint('post-oscillator');
-    console.log('[ModuleLoader] Post-oscillator modules:', postOscModules.length);
     if (postOscModules.length > 0) {
       currentOutput = this.chainModules(postOscModules);
-      console.log('[ModuleLoader] Chained post-osc modules, output:', currentOutput);
     }
 
     // Connect to filter
     if (this.audioGraph.filterNode) {
       if (currentOutput) {
-        console.log('[ModuleLoader] Connecting modules to filter');
         currentOutput.connect(this.audioGraph.filterNode);
-      } else {
-        console.log('[ModuleLoader] No modules before filter');
       }
       currentOutput = this.audioGraph.filterNode;
     }
 
     // Post-filter modules
     const postFilterModules = this.getModulesByInsertionPoint('post-filter');
-    console.log('[ModuleLoader] Post-filter modules:', postFilterModules.length);
-    console.log('[ModuleLoader] Post-filter module list:', postFilterModules.map(m => m.definition.id));
-
     if (postFilterModules.length > 0) {
-      const firstInput = postFilterModules[0].audioNodes.input;
-      console.log('[ModuleLoader] First post-filter module:', postFilterModules[0].definition.id);
-      console.log('[ModuleLoader] First post-filter module input node:', firstInput);
-      console.log('[ModuleLoader] Current output before connection:', currentOutput);
-
       if (currentOutput) {
-        console.log('[ModuleLoader] Connecting filter to post-filter modules');
         try {
-          currentOutput.connect(firstInput);
-          console.log('[ModuleLoader] ✓ Connection successful');
+          currentOutput.connect(postFilterModules[0].audioNodes.input);
         } catch (e) {
-          console.error('[ModuleLoader] ✗ Connection failed:', e);
+          console.error('[ModuleLoader] Connection failed:', e);
         }
-      } else {
-        console.warn('[ModuleLoader] No currentOutput to connect from!');
       }
-
-      const chainOutput = this.chainModules(postFilterModules);
-      console.log('[ModuleLoader] Chain output node:', chainOutput);
-      console.log('[ModuleLoader] Chain output type:', chainOutput?.constructor?.name);
-      currentOutput = chainOutput;
-      console.log('[ModuleLoader] Updated currentOutput:', currentOutput);
+      currentOutput = this.chainModules(postFilterModules);
     }
 
     // Pre-master modules
     const preMasterModules = this.getModulesByInsertionPoint('pre-master');
-    console.log('[ModuleLoader] Pre-master modules:', preMasterModules.length);
     if (preMasterModules.length > 0) {
-      const firstInput = preMasterModules[0].audioNodes.input;
       if (currentOutput) {
-        console.log('[ModuleLoader] Connecting to pre-master modules');
-        currentOutput.connect(firstInput);
+        currentOutput.connect(preMasterModules[0].audioNodes.input);
       }
       currentOutput = this.chainModules(preMasterModules);
     }
 
     // Final connection to master
-    console.log('[ModuleLoader] Before final connection:');
-    console.log('[ModuleLoader]   currentOutput:', currentOutput);
-    console.log('[ModuleLoader]   currentOutput type:', currentOutput?.constructor?.name);
-    console.log('[ModuleLoader]   Post-filter modules:', postFilterModules.length);
-    console.log('[ModuleLoader]   Pre-master modules:', preMasterModules.length);
-
-    // Connect the final output to master
     if (currentOutput && currentOutput !== this.masterGain) {
       try {
         currentOutput.connect(this.masterGain);
-        console.log('[ModuleLoader] ✓ Connected final output to master');
       } catch (e) {
-        console.error('[ModuleLoader] ✗ Failed to connect to master:', e);
+        console.error('[ModuleLoader] Failed to connect to master:', e);
       }
     } else if (currentOutput === this.audioGraph.filterNode) {
-      // No post-filter modules, connect filter directly to master
       try {
         this.audioGraph.filterNode.connect(this.masterGain);
-        console.log('[ModuleLoader] ✓ Filter connected directly to master (no post-filter modules)');
       } catch (e) {
-        console.error('[ModuleLoader] ✗ Failed to connect filter to master:', e);
+        console.error('[ModuleLoader] Failed to connect filter to master:', e);
       }
-    } else {
-      console.warn('[ModuleLoader] WARNING: No valid final output!');
     }
-
-    console.log('[ModuleLoader] ========== AUDIO GRAPH UPDATE COMPLETE ==========');
-    console.log('[ModuleLoader] Final output node:', currentOutput);
-    console.log('[ModuleLoader] Final output type:', currentOutput?.constructor?.name);
   }
 
   /**
    * Chain modules in series
    */
   chainModules(modules) {
-    console.log('[ModuleLoader] Chaining', modules.length, 'modules');
     for (let i = 0; i < modules.length - 1; i++) {
-      console.log('[ModuleLoader] Connecting module', i, 'to module', i + 1);
       modules[i].audioNodes.output.connect(modules[i + 1].audioNodes.input);
     }
-    const lastModule = modules[modules.length - 1];
-    console.log('[ModuleLoader] Last module:', lastModule.definition.id);
-    console.log('[ModuleLoader] Last module output node:', lastModule.audioNodes.output);
-    return lastModule.audioNodes.output;
+    return modules[modules.length - 1].audioNodes.output;
   }
 
   /**
@@ -552,7 +486,7 @@ class ModuleLoader {
 
         // Apply saved state
         const instance = this.modules.get(moduleData.id);
-        if (instance && moduleData.state) {
+        if (instance && instance.definition && moduleData.state) {
           if (instance.definition.state?.load) {
             instance.definition.state.load(instance.params, moduleData.state, instance.audioNodes);
             // Rebind UI if needed
