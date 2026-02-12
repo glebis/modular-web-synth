@@ -136,7 +136,46 @@ class ModuleLoader {
     const wrapper = document.createElement('div');
     wrapper.id = `module-${definition.id}`;
     wrapper.className = 'control-section';
+    wrapper.setAttribute('draggable', 'true');
+    wrapper.setAttribute('role', 'option');
+    wrapper.setAttribute('aria-label', definition.name);
+    wrapper.dataset.moduleId = definition.id;
     wrapper.innerHTML = definition.ui.template;
+
+    // Add drag handle
+    const handle = document.createElement('span');
+    handle.className = 'drag-handle';
+    handle.setAttribute('tabindex', '0');
+    handle.setAttribute('role', 'button');
+    handle.setAttribute('aria-label', `Reorder ${definition.name}. Use arrow keys.`);
+    handle.textContent = '\u2261';
+    wrapper.appendChild(handle);
+
+    // Keyboard reorder on handle
+    handle.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+        e.preventDefault();
+        const siblings = Array.from(container.querySelectorAll('.control-section[data-module-id]'));
+        const idx = siblings.indexOf(wrapper);
+        const swapIdx = e.key === 'ArrowUp' ? idx - 1 : idx + 1;
+        if (swapIdx < 0 || swapIdx >= siblings.length) return;
+        const swapEl = siblings[swapIdx];
+        const swapId = swapEl.dataset.moduleId;
+        if (e.key === 'ArrowUp') {
+          container.insertBefore(wrapper, swapEl);
+          this.reorderModule(definition.id, swapId);
+        } else {
+          container.insertBefore(swapEl, wrapper);
+          this.reorderModule(swapId, definition.id);
+        }
+        handle.focus();
+        // Announce to screen readers
+        const liveRegion = document.getElementById('reorder-live');
+        if (liveRegion) {
+          liveRegion.textContent = `${definition.name} moved to position ${Array.from(container.querySelectorAll('.control-section[data-module-id]')).indexOf(wrapper) + 1}`;
+        }
+      }
+    });
 
     // Add bypass/delete controls
     const controls = document.createElement('div');
@@ -260,6 +299,31 @@ class ModuleLoader {
       }
     });
     return result;
+  }
+
+  /**
+   * Reorder a module by moving it before another module in the chain
+   * @param {string} moduleId - The module to move
+   * @param {string|null} beforeId - Place before this module, or null for end
+   */
+  reorderModule(moduleId, beforeId) {
+    if (!this.modules.has(moduleId)) return;
+
+    // Rebuild Map in new order
+    const entries = Array.from(this.modules.entries());
+    const fromIdx = entries.findIndex(([id]) => id === moduleId);
+    const [moved] = entries.splice(fromIdx, 1);
+
+    if (beforeId) {
+      const toIdx = entries.findIndex(([id]) => id === beforeId);
+      entries.splice(toIdx, 0, moved);
+    } else {
+      entries.push(moved);
+    }
+
+    this.modules = new Map(entries);
+    this.updateAudioGraph();
+    this.saveToLocalStorage();
   }
 
   /**

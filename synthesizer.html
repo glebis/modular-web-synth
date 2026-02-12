@@ -7,7 +7,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" defer></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,200..1000;1,9..40,200..1000&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@300;400;500;700&family=Cutive+Mono&display=swap" rel="stylesheet">
   <style>
     :root {
       --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
@@ -46,7 +46,7 @@
     }
 
     body {
-      font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      font-family: 'Zen Maru Gothic', sans-serif;
       background: var(--rack-bg);
       color: var(--text-primary);
       padding: 20px;
@@ -262,7 +262,7 @@
       width: 100%;
       text-align: center;
       font-size: 7px;
-      font-family: 'JetBrains Mono', monospace;
+      font-family: 'Cutive Mono', monospace;
       font-weight: 500;
       color: #666;
       letter-spacing: 0.5px;
@@ -363,7 +363,7 @@
       font-size: 9px;
       font-weight: 600;
       border-radius: 2px;
-      font-family: 'DM Sans', sans-serif;
+      font-family: 'Zen Maru Gothic', sans-serif;
       text-transform: uppercase;
       letter-spacing: 0.5px;
       transition: all 0.15s var(--ease-out-quint);
@@ -402,45 +402,53 @@
     }
 
     /* Module browser - hardware catalog style */
+    #module-browser {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+    }
+    @media (max-width: 899px) {
+      #module-browser { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 599px) {
+      #module-browser { grid-template-columns: 1fr; }
+    }
+
     .module-item {
-      background: linear-gradient(135deg, #1a1a1a 0%, #252525 100%);
+      background: #1a1a1a;
       border: 1px solid var(--panel-border);
       border-radius: 2px;
-      padding: 8px 10px;
-      margin: 6px 0;
+      padding: 6px 8px;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+      gap: 6px;
+      transition: border-color 0.2s, background 0.2s;
+      cursor: default;
     }
 
     .module-item:hover {
       border-color: var(--accent-brass);
-      background: linear-gradient(135deg, #252525 0%, #2a2a2a 100%);
-      box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.05),
-        0 2px 6px var(--shadow-soft);
+      background: #222;
     }
 
     .module-item.loaded {
       border-color: var(--accent-copper);
-      background: linear-gradient(135deg, #2a1a0a 0%, #3a2510 100%);
-      box-shadow:
-        inset 0 1px 0 rgba(212, 175, 55, 0.1),
-        0 0 8px rgba(200, 117, 51, 0.2);
+      background: #2a1a0a;
     }
 
     .module-info {
       flex: 1;
+      min-width: 0;
     }
 
     .module-name {
-      font-size: 11px;
-      font-weight: 600;
+      font-size: 10px;
+      font-weight: 500;
       color: var(--text-primary);
-      margin-bottom: 3px;
-      letter-spacing: 0.3px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .module-item.loaded .module-name {
@@ -448,46 +456,44 @@
     }
 
     .module-desc {
-      font-size: 9px;
+      font-size: 8px;
       color: var(--text-secondary);
-      line-height: 1.3;
+      line-height: 1.2;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .module-load-btn {
-      background: linear-gradient(180deg, #2a2a2a 0%, #1a1a1a 100%);
+      background: #2a2a2a;
       color: var(--text-primary);
       border: 1px solid var(--control-border);
-      padding: 5px 12px;
+      padding: 3px 8px;
       cursor: pointer;
-      font-size: 9px;
-      font-weight: 600;
+      font-size: 8px;
+      font-weight: 500;
       border-radius: 2px;
-      font-family: 'DM Sans', sans-serif;
+      font-family: 'Cutive Mono', monospace;
       text-transform: uppercase;
       letter-spacing: 0.5px;
       transition: all 0.15s;
-      box-shadow: 0 1px 0 rgba(0, 0, 0, 0.5);
+      flex-shrink: 0;
     }
 
     .module-load-btn:hover {
-      background: linear-gradient(180deg, var(--accent-brass) 0%, #8a6608 100%);
+      background: var(--accent-brass);
       color: var(--panel-bg);
       border-color: var(--accent-brass);
-      transform: translateY(-1px);
-      box-shadow: 0 2px 0 rgba(0, 0, 0, 0.5);
     }
 
     .module-load-btn:disabled {
       opacity: 0.3;
       cursor: not-allowed;
-      border-color: #333;
-      color: #555;
     }
 
     .module-load-btn:disabled:hover {
-      background: linear-gradient(180deg, #2a2a2a 0%, #1a1a1a 100%);
-      color: #555;
-      transform: translateY(0);
+      background: #2a2a2a;
+      color: var(--text-secondary);
     }
 
     .control-group {
@@ -507,7 +513,7 @@
     .control-value {
       float: right;
       color: var(--text-value);
-      font-family: 'JetBrains Mono', monospace;
+      font-family: 'Cutive Mono', monospace;
       font-weight: 500;
       font-size: 10px;
     }
@@ -604,7 +610,7 @@
       color: var(--text-primary);
       border: 1px solid var(--control-border);
       padding: 8px 10px;
-      font-family: 'DM Sans', sans-serif;
+      font-family: 'Zen Maru Gothic', sans-serif;
       font-size: 11px;
       font-weight: 500;
       border-radius: 2px;
@@ -639,6 +645,7 @@
     #midi-controls canvas {
       height: 60px;
       min-height: 60px;
+      max-width: 100%;
     }
 
     /* Chat Interface - terminal log style */
@@ -725,7 +732,7 @@
       font-size: 14px;
       font-weight: 700;
       border-radius: 2px;
-      font-family: 'JetBrains Mono', monospace;
+      font-family: 'Cutive Mono', monospace;
       transition: all 0.15s var(--ease-out-quint);
     }
     .chat-ideas-btn:hover {
@@ -740,7 +747,7 @@
       border: 1px solid var(--control-border);
       color: var(--text-primary);
       padding: 10px 12px;
-      font-family: 'DM Sans', sans-serif;
+      font-family: 'Zen Maru Gothic', sans-serif;
       font-size: 12px;
       border-radius: 2px;
       box-shadow:
@@ -763,7 +770,7 @@
       border: 1px solid var(--accent-copper);
       padding: 10px 24px;
       cursor: pointer;
-      font-family: 'DM Sans', sans-serif;
+      font-family: 'Zen Maru Gothic', sans-serif;
       font-weight: 600;
       font-size: 11px;
       border-radius: 2px;
@@ -807,23 +814,24 @@
     }
 
     /* Module grid layout - 3 columns with min/max sizing */
+    /* Audio modules go directly into #custom-controls */
+    /* MIDI modules go into #midi-controls-body (nested inside #midi-controls) */
     #custom-controls,
-    #midi-controls {
+    #midi-controls-body {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
       gap: 12px;
       grid-template-rows: auto;
     }
 
-    #custom-controls .claude-section-label,
-    #midi-controls .claude-section-label {
+    #custom-controls .claude-section-label {
       grid-column: 1 / -1;
     }
 
     /* Force exactly 3 columns on larger screens */
     @media (min-width: 900px) {
       #custom-controls,
-      #midi-controls {
+      #midi-controls-body {
         grid-template-columns: repeat(3, minmax(0, 1fr));
       }
     }
@@ -831,7 +839,7 @@
     /* 2 columns on medium screens */
     @media (max-width: 899px) and (min-width: 600px) {
       #custom-controls,
-      #midi-controls {
+      #midi-controls-body {
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }
     }
@@ -839,7 +847,7 @@
     /* 1 column on small screens */
     @media (max-width: 599px) {
       #custom-controls,
-      #midi-controls {
+      #midi-controls-body {
         grid-template-columns: 1fr;
       }
     }
@@ -851,6 +859,71 @@
       min-height: 0;
       padding: 10px;
       overflow: hidden;
+      position: relative;
+    }
+
+    /* Drag-and-drop reordering */
+    #custom-controls .control-section[draggable="true"] {
+      cursor: grab;
+    }
+    #custom-controls .control-section[draggable="true"]:active {
+      cursor: grabbing;
+    }
+    #custom-controls .control-section.dragging {
+      opacity: 0.4;
+    }
+    #custom-controls .control-section.drag-over-before::before {
+      content: '';
+      position: absolute;
+      top: -3px;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: var(--accent-brass);
+      border-radius: 2px;
+      z-index: 10;
+    }
+    #custom-controls .control-section.drag-over-after::after {
+      content: '';
+      position: absolute;
+      bottom: -3px;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: var(--accent-brass);
+      border-radius: 2px;
+      z-index: 10;
+    }
+    .drag-handle {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      color: var(--text-secondary);
+      font-size: 10px;
+      opacity: 0.3;
+      cursor: grab;
+      user-select: none;
+      line-height: 1;
+      padding: 2px;
+    }
+    .drag-handle:hover {
+      opacity: 0.7;
+    }
+    .drag-handle:focus-visible {
+      opacity: 1;
+      outline: 1px solid var(--accent-brass);
+      outline-offset: 1px;
+    }
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
     }
 
     #custom-controls h2,
@@ -936,13 +1009,13 @@
     .preset-btn-load {
       background: var(--control-bg); color: var(--text-value); border: 1px solid var(--control-border);
       padding: 4px 8px; cursor: pointer; font-size: 9px; border-radius: 2px; text-transform: uppercase;
-      font-family: 'DM Sans', sans-serif;
+      font-family: 'Zen Maru Gothic', sans-serif;
     }
     .preset-btn-load:hover { background: var(--accent-brass); color: var(--panel-bg); border-color: var(--accent-brass); }
     .preset-btn-delete {
       background: var(--control-bg); color: #cc6666; border: 1px solid var(--control-border);
       padding: 4px 8px; cursor: pointer; font-size: 9px; border-radius: 2px; text-transform: uppercase;
-      font-family: 'DM Sans', sans-serif;
+      font-family: 'Zen Maru Gothic', sans-serif;
     }
     .preset-btn-delete:hover { background: #aa4444; color: var(--text-primary); border-color: #aa4444; }
 
@@ -1064,10 +1137,11 @@
       <div class="keyboard" id="keyboard"></div>
 
       <!-- Loaded audio modules -->
-      <div class="claude-section" id="custom-controls">
+      <div class="claude-section" id="custom-controls" role="listbox" aria-label="Effect chain - drag to reorder">
         <div class="claude-section-label section-toggle" data-target="custom-controls-body">Loaded Modules</div>
         <!-- Dynamic modules inserted here -->
       </div>
+      <div id="reorder-live" class="sr-only" aria-live="assertive" aria-atomic="true"></div>
 
       <!-- MIDI Effects Chain (collapsible, collapsed by default) -->
       <div class="claude-section" id="midi-controls">
@@ -1081,7 +1155,7 @@
       <div class="claude-section">
         <div class="claude-section-label section-toggle collapsed" data-target="module-browser-body">Available Modules</div>
         <div id="module-browser-body" class="section-body collapsed">
-          <div id="module-browser" style="padding: 10px;">
+          <div id="module-browser" style="padding: 8px;">
             <!-- Modules will be listed here -->
           </div>
         </div>
@@ -1097,7 +1171,7 @@
                 type="text"
                 id="preset-name-input"
                 placeholder="Preset name..."
-                style="flex: 1; background: var(--control-bg); border: 1px solid var(--control-border); color: var(--text-primary); padding: 6px 8px; font-family: 'JetBrains Mono', monospace; font-size: 11px; border-radius: 2px;"
+                style="flex: 1; background: var(--control-bg); border: 1px solid var(--control-border); color: var(--text-primary); padding: 6px 8px; font-family: 'Cutive Mono', monospace; font-size: 11px; border-radius: 2px;"
               >
               <button id="preset-save-btn" class="module-load-btn">Save</button>
             </div>
@@ -1155,12 +1229,24 @@
 
     // Load essential MIDI modules only (others available via console)
     async function loadDefaultMIDIModules() {
-      try {
-        await midi.loadModule((await import('./midi-modules/midi-visualizer.js')).default);
-        await midi.loadModule((await import('./midi-modules/midi-sequencer.js')).default);
-        await midi.loadModule((await import('./midi-modules/midi-transpose.js')).default);
-      } catch (error) {
-        console.error('Failed to load default MIDI modules:', error);
+      const modules = [
+        './midi-modules/midi-visualizer.js',
+        './midi-modules/midi-sequencer.js',
+        './midi-modules/midi-transpose.js',
+        './midi-modules/midi-euclidean.js',
+        './midi-modules/midi-binary-spiral.js',
+        './midi-modules/midi-arpeggiator.js',
+        './midi-modules/midi-chord.js',
+        './midi-modules/midi-quantizer.js',
+        './midi-modules/midi-velocity.js',
+        './midi-modules/midi-delay.js',
+      ];
+      for (const path of modules) {
+        try {
+          await midi.loadModule((await import(path)).default);
+        } catch (error) {
+          console.warn(`Failed to load MIDI module ${path}:`, error);
+        }
       }
     }
 
@@ -2029,9 +2115,112 @@
       console.log('📦 Module browser initialized');
     }
 
+    // === DRAG-AND-DROP REORDERING ===
+    function initDragReorder() {
+      const container = document.getElementById('custom-controls');
+      if (!container) return;
+
+      let draggedEl = null;
+
+      container.addEventListener('dragstart', (e) => {
+        const section = e.target.closest('.control-section[draggable="true"]');
+        if (!section) return;
+        draggedEl = section;
+        section.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', section.dataset.moduleId);
+      });
+
+      container.addEventListener('dragend', (e) => {
+        if (draggedEl) {
+          draggedEl.classList.remove('dragging');
+          draggedEl = null;
+        }
+        // Clear all drop indicators
+        container.querySelectorAll('.drag-over-before, .drag-over-after').forEach(el => {
+          el.classList.remove('drag-over-before', 'drag-over-after');
+        });
+      });
+
+      container.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+
+        const target = e.target.closest('.control-section[draggable="true"]');
+        if (!target || target === draggedEl) return;
+
+        // Clear previous indicators
+        container.querySelectorAll('.drag-over-before, .drag-over-after').forEach(el => {
+          el.classList.remove('drag-over-before', 'drag-over-after');
+        });
+
+        // Determine if dropping before or after based on mouse position
+        const rect = target.getBoundingClientRect();
+        const midY = rect.top + rect.height / 2;
+        if (e.clientY < midY) {
+          target.classList.add('drag-over-before');
+        } else {
+          target.classList.add('drag-over-after');
+        }
+      });
+
+      container.addEventListener('dragleave', (e) => {
+        const target = e.target.closest('.control-section');
+        if (target) {
+          target.classList.remove('drag-over-before', 'drag-over-after');
+        }
+      });
+
+      container.addEventListener('drop', (e) => {
+        e.preventDefault();
+        const draggedId = e.dataTransfer.getData('text/plain');
+        if (!draggedId) return;
+
+        const target = e.target.closest('.control-section[draggable="true"]');
+        if (!target || target === draggedEl) return;
+
+        const targetId = target.dataset.moduleId;
+        const rect = target.getBoundingClientRect();
+        const midY = rect.top + rect.height / 2;
+        const insertBefore = e.clientY < midY;
+
+        // Move DOM element
+        if (insertBefore) {
+          container.insertBefore(draggedEl, target);
+        } else {
+          container.insertBefore(draggedEl, target.nextSibling);
+        }
+
+        // Reorder in engine - find the element now after the dragged one
+        const sections = Array.from(container.querySelectorAll('.control-section[data-module-id]'));
+        const newIdx = sections.indexOf(draggedEl);
+        const nextSection = sections[newIdx + 1];
+        const beforeId = nextSection ? nextSection.dataset.moduleId : null;
+
+        if (window.SynthCore?.loader?.reorderModule) {
+          window.SynthCore.loader.reorderModule(draggedId, beforeId);
+        }
+
+        // Announce for screen readers
+        const liveRegion = document.getElementById('reorder-live');
+        if (liveRegion) {
+          const name = draggedEl.getAttribute('aria-label') || draggedId;
+          liveRegion.textContent = `${name} moved to position ${newIdx + 1}`;
+        }
+
+        // Clear indicators
+        container.querySelectorAll('.drag-over-before, .drag-over-after').forEach(el => {
+          el.classList.remove('drag-over-before', 'drag-over-after');
+        });
+      });
+
+      console.log('Drag-and-drop reordering initialized');
+    }
+
     // === INITIALIZATION ===
     initModuleBrowser();
     initPresetSystem();
+    initDragReorder();
   </script>
 </body>
 </html>
