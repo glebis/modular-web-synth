@@ -348,11 +348,12 @@ class ModuleLoader {
   listModules() {
     const list = [];
     this.modules.forEach((instance, id) => {
+      if (!instance.definition) return;
       list.push({
         id,
         name: instance.definition.name,
         version: instance.definition.version,
-        insertionPoint: instance.definition.audio.insertionPoint
+        insertionPoint: instance.definition.audio?.insertionPoint
       });
     });
     return list;
@@ -428,6 +429,7 @@ class ModuleLoader {
     // Gather all module data
     const modulesData = [];
     this.modules.forEach((instance) => {
+      if (!instance.definition) return;
       const savedState = instance.definition.state?.save ?
         instance.definition.state.save(instance.params) :
         instance.params;
@@ -471,7 +473,11 @@ class ModuleLoader {
    * Load a preset
    */
   async loadPreset(presetData) {
-    console.log('[ModuleLoader] Loading preset:', presetData.name);
+    console.log('[ModuleLoader] Loading preset:', presetData?.name, presetData);
+
+    if (!presetData || !Array.isArray(presetData.modules)) {
+      throw new Error('Invalid preset data: missing modules array');
+    }
 
     // Clear all current modules
     const currentModuleIds = Array.from(this.modules.keys());
@@ -481,23 +487,25 @@ class ModuleLoader {
 
     // Load modules in order
     for (const moduleData of presetData.modules) {
+      if (!moduleData || !moduleData.url) {
+        console.warn('[ModuleLoader] Skipping module with no URL:', moduleData);
+        continue;
+      }
       try {
         await this.loadModule(moduleData.url);
 
         // Apply saved state
         const instance = this.modules.get(moduleData.id);
-        if (instance && instance.definition && moduleData.state) {
+        if (instance?.definition && moduleData.state) {
           if (instance.definition.state?.load) {
             instance.definition.state.load(instance.params, moduleData.state, instance.audioNodes);
-            // Rebind UI if needed
-            if (instance.definition.ui.bindEvents) {
+            if (instance.definition.ui?.bindEvents) {
               instance.definition.ui.bindEvents(instance.audioNodes, instance.params);
             }
           } else {
             instance.params = { ...moduleData.state };
           }
 
-          // Apply bypass state
           if (moduleData.bypassed) {
             this.toggleBypass(moduleData.id);
           }

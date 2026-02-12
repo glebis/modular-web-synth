@@ -645,43 +645,37 @@
     .chat-messages {
       flex: 1;
       overflow-y: auto;
-      margin-bottom: 12px;
-      padding: 10px;
-      background: radial-gradient(ellipse at top left, #0a0a0a 0%, #000 100%);
+      margin-bottom: 8px;
+      padding: 8px;
+      background: #0a0a0a;
       border: 1px solid var(--panel-border);
       border-radius: 2px;
       max-height: 60vh;
-      box-shadow:
-        inset 0 2px 8px rgba(0, 0, 0, 0.6),
-        inset 0 -1px 0 rgba(255, 255, 255, 0.02);
     }
 
     .message {
-      margin: 8px 0;
-      padding: 8px 10px;
+      margin: 6px 0;
+      padding: 6px 10px;
       border-radius: 2px;
       line-height: 1.4;
-      font-size: 12px;
+      font-size: 11px;
+      color: var(--text-secondary);
       border-left: 2px solid transparent;
     }
 
     .message.user {
-      background: linear-gradient(135deg, #1a1a1a 0%, #252525 100%);
       border-left-color: var(--accent-brass);
       color: var(--text-primary);
     }
 
     .message.assistant {
-      background: linear-gradient(135deg, #1a1515 0%, #251a1a 100%);
       border-left-color: var(--accent-copper);
       color: var(--text-primary);
     }
 
     .message.system {
-      background: linear-gradient(135deg, #151a1a 0%, #1a2020 100%);
-      border-left-color: #5a8a8a;
-      font-size: 11px;
-      color: #8ab8b8;
+      font-size: 10px;
+      color: var(--text-secondary);
     }
 
     .suggestion-chip {
@@ -716,40 +710,28 @@
       box-shadow: 0 0 0 rgba(0, 0, 0, 0.5);
     }
 
-    .regenerate-btn {
-      background: linear-gradient(180deg, #2a2a2a 0%, #1a1a1a 100%);
-      color: var(--accent-copper);
-      border: 1px solid var(--control-border);
-      padding: 6px 12px;
-      margin-top: 6px;
-      margin-right: 4px;
-      border-radius: 2px;
-      cursor: pointer;
-      font-size: 10px;
-      font-weight: 600;
-      font-family: 'DM Sans', sans-serif;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      transition: all 0.15s var(--ease-out-quint);
-      box-shadow: 0 1px 0 rgba(0, 0, 0, 0.5);
-    }
-
-    .regenerate-btn:hover {
-      background: linear-gradient(180deg, var(--accent-copper) 0%, #9a5828 100%);
-      color: var(--panel-bg);
-      border-color: var(--accent-copper);
-      transform: translateY(-1px);
-      box-shadow: 0 2px 0 rgba(0, 0, 0, 0.5);
-    }
-
-    .regenerate-btn:active {
-      transform: translateY(0);
-      box-shadow: 0 0 0 rgba(0, 0, 0, 0.5);
-    }
-
     .chat-input-container {
       display: flex;
-      gap: 8px;
+      gap: 6px;
+      align-items: stretch;
+    }
+
+    .chat-ideas-btn {
+      background: linear-gradient(180deg, #2a2a2a 0%, #1a1a1a 100%);
+      color: var(--text-value);
+      border: 1px solid var(--control-border);
+      width: 36px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 700;
+      border-radius: 2px;
+      font-family: 'JetBrains Mono', monospace;
+      transition: all 0.15s var(--ease-out-quint);
+    }
+    .chat-ideas-btn:hover {
+      background: linear-gradient(180deg, var(--accent-brass) 0%, #8a6608 100%);
+      color: var(--panel-bg);
+      border-color: var(--accent-brass);
     }
 
     .chat-input {
@@ -1129,17 +1111,12 @@
 
     <!-- CHAT PANEL -->
     <div class="chat-panel">
-      <h1>Claude Interface</h1>
-
       <div class="chat-messages" id="chat-messages">
         <!-- Messages will be added here via JavaScript -->
       </div>
 
-      <div style="margin-bottom: 6px;">
-        <button class="regenerate-btn" id="suggest-modules-btn">Ideas</button>
-      </div>
-
       <div class="chat-input-container">
+        <button class="chat-ideas-btn" id="suggest-modules-btn" title="Get module ideas">?</button>
         <input
           type="text"
           class="chat-input"
@@ -1597,47 +1574,7 @@
     function addMessage(text, type = 'user') {
       const message = document.createElement('div');
       message.className = `message ${type}`;
-
-      // Parse suggestions in assistant messages
-      if (type === 'assistant') {
-        let html = text.replace(/\n/g, '<br>');
-
-        // Detect module suggestions (patterns like "- Effect Name" or "• Effect Name" or "1. Effect Name")
-        const suggestionPatterns = [
-          /^[-•]\s*(.+?)(?:\s*-\s*.+)?$/gm,  // - Item or • Item
-          /^\d+\.\s*(.+?)(?:\s*-\s*.+)?$/gm  // 1. Item
-        ];
-
-        let hasSuggestions = false;
-
-        for (const pattern of suggestionPatterns) {
-          if (pattern.test(text)) {
-            hasSuggestions = true;
-            html = html.replace(pattern, (match, moduleName) => {
-              const cleanName = moduleName.trim();
-              return `<span class="suggestion-chip" onclick="sendSuggestion('${cleanName.replace(/'/g, "\\'")}')">${match}</span>`;
-            });
-          }
-        }
-
-        message.innerHTML = html;
-
-        // Add regenerate button if suggestions detected
-        if (hasSuggestions) {
-          const regenBtn = document.createElement('button');
-          regenBtn.className = 'regenerate-btn';
-          regenBtn.textContent = '↻ More Suggestions';
-          regenBtn.onclick = () => {
-            chatInput.value = 'suggest more module ideas';
-            sendMessage();
-          };
-          message.appendChild(document.createElement('br'));
-          message.appendChild(regenBtn);
-        }
-      } else {
-        message.innerHTML = text.replace(/\n/g, '<br>');
-      }
-
+      message.innerHTML = text.replace(/\n/g, '<br>');
       chatMessages.appendChild(message);
       chatMessages.scrollTop = chatMessages.scrollHeight;
     }
@@ -1664,11 +1601,9 @@
       const text = chatInput.value.trim();
       if (!text) return;
 
-      console.log('[Chat] Sending message:', text);
-      addMessage('You: ' + text, 'user');
+      addMessage(text, 'user');
       chatInput.value = '';
       chatSend.disabled = true;
-      chatSend.textContent = 'Generating...';
 
       try {
         console.log('[Chat] Fetching from API...');
@@ -1722,7 +1657,6 @@
         console.error('[Chat] Error details:', error);
       } finally {
         chatSend.disabled = false;
-        chatSend.textContent = 'Send Request';
       }
     }
 
@@ -1864,6 +1798,9 @@
           updatePresetList();
           addMessage(`✓ Preset "${name}" loaded`, 'system');
         } catch (error) {
+          console.error('[Preset] Load failed:', error);
+          console.error('[Preset] Stack:', error.stack);
+          console.error('[Preset] Preset data:', JSON.stringify(preset, null, 2));
           alert(`Failed to load preset: ${error.message}`);
           addMessage(`✗ Failed to load preset: ${error.message}`, 'system');
         }

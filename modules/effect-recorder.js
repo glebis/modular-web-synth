@@ -459,11 +459,6 @@ export default {
     },
     onUnload: (ctx) => {
       console.log('[Recorder] Module unloading');
-      // Cleanup any active recording
-      const params = this.state.defaults;
-      if (params.cleanup) {
-        params.cleanup();
-      }
     }
   }
 };
