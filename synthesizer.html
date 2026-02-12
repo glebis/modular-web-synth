@@ -1116,7 +1116,7 @@
       </div>
 
       <div class="chat-input-container">
-        <button class="chat-ideas-btn" id="suggest-modules-btn" title="Get module ideas">?</button>
+        <button class="chat-ideas-btn" id="suggest-modules-btn" title="Suggest module ideas">?</button>
         <input
           type="text"
           class="chat-input"
@@ -1125,6 +1125,9 @@
           autocomplete="off"
         >
         <button class="chat-send" id="chat-send">Generate</button>
+      </div>
+      <div style="font-size:9px;color:#555;margin-top:6px;line-height:1.4;">
+        AI generation requires <a href="https://github.com/glebis/modular-web-synth" target="_blank" style="color:#777;">local Claude Code setup</a>
       </div>
     </div>
   </div>
@@ -1374,6 +1377,7 @@
     };
 
     window.addEventListener('keydown', (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
       const note = keyMap[e.key.toLowerCase()];
       if (note && !e.repeat) {
         // Trigger through MIDI chain instead of direct playNote
@@ -1406,6 +1410,7 @@
     });
 
     window.addEventListener('keyup', (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
       const note = keyMap[e.key.toLowerCase()];
       if (note) {
         // Only release if not in hold mode
